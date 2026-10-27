@@ -13,13 +13,27 @@ copy lives in the origin note, this is only the reverse lookup.
 - wdk-wallet — causes → Breaking change entre betas because el changelog marca varios cambios `[Breaking]` de contratos base entre betas consecutivas
 - wdk-wallet-btc — causes → Breaking change entre betas because el cambio del path de derivación por defecto alteró las direcciones de una misma seed
 - wdk-wallet-evm — causes → Breaking change entre betas because el changelog marca como `[Breaking]` el cambio de overrides de gas en transferencias ERC-20
+- wdk-wallet-evm-7702-gasless — causes → Breaking change entre betas because el changelog marca como `[Breaking]` la beta.7, que acepta providers ethers y comparte el cliente RPC del manager
+- wdk-wallet-evm-erc-4337 — causes → Breaking change entre betas because el changelog marca como `[Breaking]` la aceptación de providers ethers y el traslado de los overrides de gas a las opciones, en la beta.21
 - wdk-wallet-multisig-squads — causes → Breaking change entre betas because el changelog marca como `[Breaking]` el resultado de aprobaciones off-chain
 - wdk-wallet-solana — causes → Breaking change entre betas because el cambio del path por defecto produjo direcciones distintas para una misma seed
+- wdk-wallet-solana-gasless — causes → Breaking change entre betas because el changelog marca como `[Breaking]` la beta.5, que reemplaza `ConfigurationError` por `ValueError`
 - wdk-wallet-ton — causes → Breaking change entre betas because el changelog marca como `[Breaking]` el nuevo esquema de firma de mensajes
+- wdk-wallet-ton-gasless — causes → Breaking change entre betas because el changelog marca como `[Breaking]` la beta.13, con firmas de mensajes con separación de dominio incompatibles con las anteriores
 - wdk-worklet-bundler — causes → Breaking change entre betas because el changelog marca como `[Breaking]` volver opcional la conversión ESM a CJS
+
+## Bundler ERC-4337
+- wdk-wallet-evm-7702-gasless — requires → Bundler ERC-4337 because necesita la URL de un bundler ERC-4337
+- wdk-wallet-evm-erc-4337 — requires → Bundler ERC-4337 because `bundlerUrl` es un parámetro obligatorio para procesar transacciones
+
+## Cuenta sin saldo del token para repagar al paymaster
+- Modos de pago de gas en ERC-4337 — causes → Cuenta sin saldo del token para repagar al paymaster because en modo Paymaster Token el fee se descuenta del saldo de la Safe, y si ese saldo no alcanza el envío falla con un error de saldo insuficiente
 
 ## Custodia tercerizada (MPC)
 - wdk — can replace → Custodia tercerizada (MPC) because solo si la app asume la custodia, la recuperación y el respaldo de la seed, que dejan de estar en manos de un proveedor
+
+## Delegación EIP-7702
+- wdk-wallet-evm-7702-gasless — depends on → Delegación EIP-7702 because la cuenta delega su ejecución en el `delegationAddress` configurado
 
 ## Fuga de seed por almacenamiento inseguro
 - La seed nunca sale del dispositivo — forbids → Fuga de seed por almacenamiento inseguro because guardar o enviar la seed sin cifrar fuera del control de la app rompe la garantía
@@ -29,9 +43,26 @@ copy lives in the origin note, this is only the reverse lookup.
 - wdk-secret-manager — mitigates → Fuga de seed por almacenamiento inseguro because cifra la seed con una passkey y la limpia de memoria
 - wdk-utils — mitigates → Fuga de seed por almacenamiento inseguro because cifra la seed con una passphrase antes de persistirla
 
+## Gasless requiere paymaster configurado
+- wdk-wallet-evm-7702-gasless — requires → Gasless requiere paymaster configurado because necesita un endpoint de paymaster, y una política de patrocinio o un token de pago
+- wdk-wallet-evm-erc-4337 — requires → Gasless requiere paymaster configurado because los modos Paymaster Token y Sponsorship Policy exigen `paymasterUrl`
+- wdk-wallet-solana-gasless — requires → Gasless requiere paymaster configurado because `paymasterUrl`, `paymasterAddress` y `paymasterToken` son obligatorios
+- wdk-wallet-ton-gasless — requires → Gasless requiere paymaster configurado because `paymasterToken` es obligatorio y `tonApiClient` se usa para construir y retransmitir las transferencias gasless
+- wdk-wallet-tron-gasfree — requires → Gasless requiere paymaster configurado because `gasFreeProvider`, la URL del servicio GasFree que cubre el fee, es un parámetro obligatorio
+
+## Infraestructura AA de terceros
+- wdk-wallet-evm-7702-gasless — can replace → Infraestructura AA de terceros because puede asumir el rol del SDK de smart accounts del lado cliente, pero la app debe seguir aportando un bundler, un paymaster y un `delegationAddress` verificado
+- wdk-wallet-evm-erc-4337 — can replace → Infraestructura AA de terceros because puede asumir el rol del SDK de smart accounts del lado cliente, pero la app debe seguir aportando un `bundlerUrl` y, según el modo, un `paymasterUrl` de un proveedor externo
+
 ## La seed nunca sale del dispositivo
 - Diseñar el WDK como autocustodial sin custodio intermediario — establishes → La seed nunca sale del dispositivo because la visión de control total del usuario sobre sus activos exige que el SDK no retenga la seed
 - Seed derivada en el dispositivo — requires → La seed nunca sale del dispositivo because la derivación solo es autocustodial si la seed no sale del entorno de la app
+
+## Modos de pago de gas en ERC-4337
+- wdk-wallet-evm-erc-4337 — opens a question about → Modos de pago de gas en ERC-4337 because la doc describe tres modos pero indica que solo debe estar activo uno, sin explicar qué ocurre con una combinación
+
+## Paymaster
+- Gasless requiere paymaster configurado — requires → Paymaster because sin un paymaster o relay configurado el fee no tiene quién lo cubra
 
 ## Pérdida de fondos por seed sin backup
 - wdk-backup-cloud — mitigates → Pérdida de fondos por seed sin backup because permite recuperar la wallet entre dispositivos a partir de un respaldo cifrado
@@ -48,6 +79,14 @@ copy lives in the origin note, this is only the reverse lookup.
 ## Usar una API documentada que mi versión no tiene
 - Verificar la versión antes de afirmar una capacidad — prevents → Usar una API documentada que mi versión no tiene
 - Versión documentada vs versión instalada — causes → Usar una API documentada que mi versión no tiene
+
+## Usuario con USD₮ y sin token nativo no puede transferir
+- Paymaster — mitigates → Usuario con USD₮ y sin token nativo no puede transferir because al cobrar el fee en el token del paymaster o patrocinarlo, la cuenta no necesita saldo nativo, siempre que el paymaster esté configurado y soporte el token
+- wdk-wallet-evm-7702-gasless — mitigates → Usuario con USD₮ y sin token nativo no puede transferir because con patrocinio o con `paymasterToken` el usuario no paga con token nativo, siempre que el paymaster esté configurado
+- wdk-wallet-evm-erc-4337 — mitigates → Usuario con USD₮ y sin token nativo no puede transferir because en los modos Paymaster Token y Sponsorship Policy la cuenta no necesita token nativo, pero el modo Native Coins no lo evita
+- wdk-wallet-solana-gasless — mitigates → Usuario con USD₮ y sin token nativo no puede transferir because el paymaster actúa como fee payer y el fee se cobra en un token SPL, no en SOL
+- wdk-wallet-ton-gasless — mitigates → Usuario con USD₮ y sin token nativo no puede transferir because las transferencias de Jettons no requieren que el usuario tenga TON, pero el Jetton de fee debe figurar en la configuración del servicio gasless
+- wdk-wallet-tron-gasfree — mitigates → Usuario con USD₮ y sin token nativo no puede transferir because las transferencias TRC20 pasan por el servicio GasFree y no exigen TRX al usuario, siempre que el proveedor esté configurado
 
 ## Verificar la versión antes de afirmar una capacidad
 - Usar la release integrada en SpaceUY como versión desplegada — establishes → Verificar la versión antes de afirmar una capacidad
@@ -97,14 +136,28 @@ copy lives in the origin note, this is only the reverse lookup.
 - wdk-wallet-spark — contrasts with → wdk-wallet-btc because el selector de módulos los separa: Lightning sobre Spark frente a Bitcoin en capa base
 
 ## wdk-wallet-evm
+- wdk-wallet-evm-7702-gasless — depends on → wdk-wallet-evm because la doc declara su dependencia del paquete EVM, cuya instancia exacta hay que usar para envolver una cuenta existente
 - wdk-wallet-evm-bermuda — depends on → wdk-wallet-evm because su manager extiende el manager EVM y suma `getBermudaAccount()`
+- wdk-wallet-evm-erc-4337 — depends on → wdk-wallet-evm because la doc declara que el módulo depende del paquete EVM, del que reutiliza derivación y firma
 - wdk-wallet-evm-hinkal — depends on → wdk-wallet-evm because su manager extiende `WalletManagerEvm`
+
+## wdk-wallet-evm-erc-4337
+- wdk-wallet-evm-7702-gasless — contrasts with → wdk-wallet-evm-erc-4337 because mantiene la dirección EOA del usuario, mientras que el módulo ERC-4337 opera desde una smart account Safe
 
 ## wdk-wallet-evm-hinkal
 - wdk-wallet-evm-bermuda — contrasts with → wdk-wallet-evm-hinkal because ambos dan privacidad en EVM: cuentas blindadas con pool propio frente a envíos privados con retiro programado
 
 ## wdk-wallet-rgb
 - wdk-rgb-lightning — contrasts with → wdk-wallet-rgb because ambos manejan RGB pero son wallets separadas, con identidades y bases de datos distintas
+
+## wdk-wallet-solana
+- wdk-wallet-solana-gasless — depends on → wdk-wallet-solana because la doc lo presenta como un envoltorio del módulo estándar de Solana
+
+## wdk-wallet-ton
+- wdk-wallet-ton-gasless — depends on → wdk-wallet-ton because hereda de ese módulo la derivación por defecto y las firmas de mensajes con separación de dominio
+
+## wdk-wallet-tron
+- wdk-wallet-tron-gasfree — depends on → wdk-wallet-tron because su manager extiende `WalletManagerTron`
 
 ## wdk-worklet-bundler
 - wdk-react-native-core — requires → wdk-worklet-bundler because necesita el bundle del worklet que genera el bundler
