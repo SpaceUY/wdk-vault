@@ -17,5 +17,5 @@ source:
 - depends on → [[wdk-wallet]] because los managers que registra extienden `WalletManager` del paquete base
 - requires → [[Seed derivada en el dispositivo]] because el constructor recibe la seed que la app genera o descifra
 - causes → [[Breaking change entre betas]] because el changelog marca como `[Breaking]` cambios de contrato de las políticas entre betas
-- can replace → [[Custodia tercerizada (MPC)]] because las claves quedan en el entorno de la app y no hay custodio externo
-- can replace → [[Wallets embebidas WaaS]] because ofrece cuentas por cadena sin un proveedor de wallets hospedadas
+- can replace → [[Custodia tercerizada (MPC)]] because solo si la app asume la custodia, la recuperación y el respaldo de la seed, que dejan de estar en manos de un proveedor
+- can replace → [[Wallets embebidas WaaS]] because reemplaza las cuentas y claves por cadena si la app asume custodia, recuperación y respaldo; la autenticación, el login y la biometría no se reemplazan y siguen a cargo de la app

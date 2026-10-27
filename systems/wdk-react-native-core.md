@@ -16,7 +16,7 @@ Librería de hooks para apps React Native que gestiona creación, restauración,
 - requires → [[wdk-worklet-bundler]] because necesita el bundle del worklet que genera el bundler
 - mitigates → [[Fuga de seed por almacenamiento inseguro]] because guarda las credenciales cifradas en el keychain del dispositivo
 - causes → [[Breaking change entre betas]] because el changelog marca como `[Breaking]` el paso a identidad de wallet a cargo de la app
-- can replace → [[Wallets embebidas WaaS]] because ofrece creación, bloqueo y desbloqueo de wallets dentro de la app sin proveedor hospedado
+- can replace → [[Wallets embebidas WaaS]] because cubre creación, bloqueo y desbloqueo de wallets si la app asume custodia, recuperación y respaldo; no impone autenticación ni biometría, que la app aplica antes de `unlock()`
 
 ## Associative
 - contrasts with → [[wdk-react-native-secure-storage]] because incluye su propio storage con identificadores explícitos y autenticación a cargo de la app, a diferencia del paquete standalone

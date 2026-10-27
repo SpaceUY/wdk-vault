@@ -12,4 +12,3 @@ En el WDK la app aporta una seed BIP-39 y cada módulo deriva de ella, en el pro
 
 ## Structural
 - requires → [[La seed nunca sale del dispositivo]] because la derivación solo es autocustodial si la seed no sale del entorno de la app
-- requires → [[backup-cloud no cifra: la app cifra antes]] because la única recuperación posible pasa por un respaldo que la propia app cifró

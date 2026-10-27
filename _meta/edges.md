@@ -19,11 +19,11 @@ copy lives in the origin note, this is only the reverse lookup.
 - wdk-worklet-bundler — causes → Breaking change entre betas because el changelog marca como `[Breaking]` volver opcional la conversión ESM a CJS
 
 ## Custodia tercerizada (MPC)
-- wdk — can replace → Custodia tercerizada (MPC) because las claves quedan en el entorno de la app y no hay custodio externo
+- wdk — can replace → Custodia tercerizada (MPC) because solo si la app asume la custodia, la recuperación y el respaldo de la seed, que dejan de estar en manos de un proveedor
 
 ## Fuga de seed por almacenamiento inseguro
-- La seed nunca sale del dispositivo — forbids → Fuga de seed por almacenamiento inseguro because guardar la seed en claro en un lugar que no controla el dispositivo rompe la garantía
-- backup-cloud no cifra: la app cifra antes — prevents → Fuga de seed por almacenamiento inseguro because al exigir texto cifrado de origen, el proveedor de nube nunca recibe la seed en claro
+- La seed nunca sale del dispositivo — forbids → Fuga de seed por almacenamiento inseguro because guardar o enviar la seed sin cifrar fuera del control de la app rompe la garantía
+- backup-cloud no cifra: la app cifra antes — mitigates → Fuga de seed por almacenamiento inseguro because al exigir texto cifrado de origen, el proveedor de nube no recibe la seed en claro, aunque el respaldo sigue exponiendo identificadores, tiempos y accesos
 - wdk-react-native-core — mitigates → Fuga de seed por almacenamiento inseguro because guarda las credenciales cifradas en el keychain del dispositivo
 - wdk-react-native-secure-storage — mitigates → Fuga de seed por almacenamiento inseguro because mantiene el material de la wallet cifrado en el keychain del dispositivo
 - wdk-secret-manager — mitigates → Fuga de seed por almacenamiento inseguro because cifra la seed con una passkey y la limpia de memoria
@@ -34,7 +34,6 @@ copy lives in the origin note, this is only the reverse lookup.
 - Seed derivada en el dispositivo — requires → La seed nunca sale del dispositivo because la derivación solo es autocustodial si la seed no sale del entorno de la app
 
 ## Pérdida de fondos por seed sin backup
-- La seed nunca sale del dispositivo — causes → Pérdida de fondos por seed sin backup because al no existir otra copia, perder el dispositivo sin respaldo propio pierde el acceso
 - wdk-backup-cloud — mitigates → Pérdida de fondos por seed sin backup because permite recuperar la wallet entre dispositivos a partir de un respaldo cifrado
 - wdk-utils — mitigates → Pérdida de fondos por seed sin backup because permite repartir el mnemónico en partes y recuperarlo con un umbral
 - wdk-wallet-rgb — opens a question about → Pérdida de fondos por seed sin backup because la doc aclara que la seed no reemplaza el respaldo del estado RGB local, algo que este modelo de pérdida no cubre
@@ -54,11 +53,10 @@ copy lives in the origin note, this is only the reverse lookup.
 - Usar la release integrada en SpaceUY como versión desplegada — establishes → Verificar la versión antes de afirmar una capacidad
 
 ## Wallets embebidas WaaS
-- wdk — can replace → Wallets embebidas WaaS because ofrece cuentas por cadena sin un proveedor de wallets hospedadas
-- wdk-react-native-core — can replace → Wallets embebidas WaaS because ofrece creación, bloqueo y desbloqueo de wallets dentro de la app sin proveedor hospedado
+- wdk — can replace → Wallets embebidas WaaS because reemplaza las cuentas y claves por cadena si la app asume custodia, recuperación y respaldo; la autenticación, el login y la biometría no se reemplazan y siguen a cargo de la app
+- wdk-react-native-core — can replace → Wallets embebidas WaaS because cubre creación, bloqueo y desbloqueo de wallets si la app asume custodia, recuperación y respaldo; no impone autenticación ni biometría, que la app aplica antes de `unlock()`
 
 ## backup-cloud no cifra: la app cifra antes
-- Seed derivada en el dispositivo — requires → backup-cloud no cifra: la app cifra antes because la única recuperación posible pasa por un respaldo que la propia app cifró
 - wdk-backup-cloud — requires → backup-cloud no cifra: la app cifra antes because sube el string tal cual, sin cifrar ni validar nada
 
 ## pear-wrk-wdk
