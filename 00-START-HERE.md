@@ -23,11 +23,8 @@ Correr `python3 _meta/check.py` después de editar.
 Hacer estas preguntas con el vault como único contexto: cada una debe volver como una cadena causal que cita notas y termina en un conjunto ordenado de acciones, no como una lista de temas relacionados.
 
 1. «¿Puedo pasar un `Provider` de ethers ya existente a `WalletManagerEvm` en `wdk-indexer-wrk-evm` con la versión que tengo?»
-   Respuesta esperada: no, o no verificado. Cita las versiones de `_meta/versions.md` (instalada beta.11, la doc describe beta.20) y no afirma que se pueda; según la Decisión 5 la API se verifica clonando el tag v1.0.0-beta.11 del repo público del SDK.
 2. «Un usuario tiene USD₮ en Tron y no puede transferir: ¿qué falta y en qué orden se arregla?»
-   Parte de [[Usuario con USD₮ y sin token nativo no puede transferir]] y llega a las condiciones de [[wdk-wallet-tron-gasfree]].
 3. «Un proyecto usa Privy y Alchemy: ¿qué parte reemplaza WDK y bajo qué condiciones?»
-   Parte de los servicios [[Wallets embebidas WaaS]], [[Indexadores y nodos de terceros]] e [[Infraestructura AA de terceros]] y de sus entradas `can replace`.
 
 Una respuesta vaga es una señal sobre el grafo, no sobre el modelo: la espina está poco tipada y la solución son mejores aristas, no más notas.
 

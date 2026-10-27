@@ -8,6 +8,9 @@ detect:
   - '@quicknode/sdk'
   - api.etherscan.io
   - tronscan
+  - alchemy.com
+  - infura.io
+  - quiknode.pro
 source:
   - wdk-docs/content/docs/tools/indexer-api/index.mdx
   - wdk-indexer-wrk-evm/config/eth.json.example

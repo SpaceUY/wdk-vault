@@ -1,2 +1,4 @@
 .obsidian/workspace*
 __pycache__/
+# Informes de auditoría de proyectos de clientes: confidenciales, nunca se commitean (auditoria/PROCEDIMIENTO.md, paso 6)
+auditoria/informes/

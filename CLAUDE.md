@@ -27,4 +27,15 @@ Seguir este orden:
 
 El procedimiento completo para auditar un proyecto está en `auditoria/PROCEDIMIENTO.md`.
 
+## Mantenimiento
+
+Para poner el vault al día, en este orden y desde la raíz del vault:
+
+1. `git -C ../<repo> fetch origin` para cada repo de `_meta/repos.txt` (nunca pull, merge ni checkout).
+2. Skill `updating-typed-knowledge-vaults` contra `origin/main`: por repo, el diff `<commit>..origin/main`, con el `commit` de su sección en `_meta/last-sync.md`.
+3. `python3 _meta/versions.py --npm --checkpoint <repos sincronizados>`: solo avanzan las secciones nombradas; las demás conservan su punto de sincronización. Sin nombres avanza todas, así que se usa solo cuando se sincronizaron todos los repos.
+4. `python3 _meta/check.py`, que tiene que terminar limpio.
+
+Las versiones de `_meta/versions.md` salen de `origin/main`, no del checkout local; si el checkout está atrasado, el archivo lo avisa.
+
 Después de cualquier edición, correr `python3 _meta/check.py`. Valida el vocabulario, el frontmatter, los enlaces y las rutas de `source:`, falla ante ciclos estructurales y regenera `_meta/edges.md`. Tiene que terminar limpio. Los tests del validador se corren con `python3 -m unittest discover -s _meta/tests -v`.

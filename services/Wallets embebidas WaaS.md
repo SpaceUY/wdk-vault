@@ -7,6 +7,10 @@ detect:
   - magic-sdk
   - '@web3auth/modal'
   - '@dynamic-labs/sdk-react-core'
+  - '@privy-io/'
+  - '@magic-ext/'
+  - '@web3auth/'
+  - '@dynamic-labs/'
 source:
   - wdk-docs/content/docs/overview/about.mdx
   - wdk-docs/content/docs/ai/agent-skills.mdx

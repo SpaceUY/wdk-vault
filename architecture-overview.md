@@ -39,7 +39,8 @@ flowchart TD
 | Término | Significado en este vault | Ver |
 | --- | --- | --- |
 | Módulo | Paquete del WDK (`system`) que se registra en el orquestador o se usa solo | [[MOC Catálogo WDK]] |
-| Módulo comunitario | Módulo que mantiene un tercero y que Tether no respalda; su nota va con `status: draft` | sección «Lo diseñado pero no vivo» de este documento |
+| Módulo comunitario | Módulo que mantiene un tercero y que Tether no respalda | sección «Lo diseñado pero no vivo» de este documento |
+| `shipped` y `draft` en un módulo | `shipped`: publicado en npm (las betas cuentan). `draft`: no se instala desde npm o su madurez no está clara | sección «Lo diseñado pero no vivo» de este documento |
 | Seed | Semilla BIP-39 de la que se derivan todas las cuentas; el único activo que hay que proteger y respaldar | [[Seed derivada en el dispositivo]] |
 | Paymaster | Tercero que cubre o cobra el fee de una transacción en lugar del usuario | [[Paymaster]] |
 | Bundler | Servicio que recibe las `UserOperation` ERC-4337 y las incluye en cadena | [[Bundler ERC-4337]] |
@@ -54,7 +55,7 @@ flowchart TD
 
 El vault registra dos decisiones, y cada una establece una restricción que ordena una espina.
 
-- **Autocustodia.** [[Diseñar el WDK como autocustodial sin custodio intermediario]] establece [[La seed nunca sale del dispositivo]]. Esa restricción prohíbe [[Fuga de seed por almacenamiento inseguro]], y las herramientas del SDK la mitigan; el riesgo hermano, [[Pérdida de fondos por seed sin backup]], se mitiga con respaldo, y [[backup-cloud no cifra: la app cifra antes]] fija quién cifra ese respaldo. Contraste de mercado: [[Custodia tercerizada (MPC)]] y [[Wallets embebidas WaaS]] delegan las claves, y migrar a WDK traslada esa responsabilidad a la app.
+- **Autocustodia.** [[Diseñar el WDK como autocustodial sin custodio intermediario]] establece [[La seed nunca sale del dispositivo]]. Esa restricción prohíbe [[Fuga de seed por almacenamiento inseguro]], y las herramientas del SDK la mitigan; el riesgo hermano, [[Pérdida de fondos por seed sin backup]], se mitiga con respaldo, y [[backup-cloud no cifra, la app cifra antes]] fija quién cifra ese respaldo. Contraste de mercado: [[Custodia tercerizada (MPC)]] y [[Wallets embebidas WaaS]] delegan las claves, y migrar a WDK traslada esa responsabilidad a la app.
 - **Versión desplegada.** [[Usar la release integrada en SpaceUY como versión desplegada]] establece [[Verificar la versión antes de afirmar una capacidad]], que previene [[Usar una API documentada que mi versión no tiene]] y mitiga [[Breaking change entre betas]]. El procedimiento operativo es la sección «¿Puedo hacer X con mi versión?» de `CLAUDE.md`.
 
 Las demás espinas no nacen de una decisión modelada sino de restricciones de los propios módulos: [[Gasless requiere paymaster configurado]] y [[Capability del handshake ork debe coincidir]].
@@ -67,13 +68,14 @@ Esta sección se calcula con el `status` real del frontmatter, no de memoria. Co
 grep -rlE '^status: (proposed|draft|built-off-by-default)' --include='*.md' concepts constraints failures decisions systems services MOC
 ```
 
-Al 2026-10-26 el resultado es de 5 notas, todas `draft`; no hay ninguna `proposed` ni `built-off-by-default` (tampoco `todo` ni `superseded`). `draft` marca un módulo comunitario cuya madurez no está clara, no algo inexistente. Ninguna de estas notas debe citarse como capacidad lista para producción:
+Al 2026-10-26 el resultado es de 6 notas, todas `draft`; no hay ninguna `proposed` ni `built-off-by-default` (tampoco `todo` ni `superseded`). `draft` marca un módulo que no se instala desde npm o cuya madurez no está clara, no algo inexistente. Ninguna de estas notas debe citarse como capacidad lista para producción:
 
 - [[wdk-wallet-cosmos]]: cadenas Cosmos.
 - [[wdk-wallet-rgb]]: activos RGB sobre Bitcoin.
 - [[wdk-rgb-lightning]]: nodo Lightning con RGB.
 - [[wdk-wallet-evm-bermuda]]: cuentas blindadas de Bermuda en EVM.
 - [[wdk-wallet-evm-x402-facilitator]]: facilitator x402 autoalojado.
+- [[wdk-mcp-toolkit]]: servidores MCP con wallets del WDK; la versión documentada no está publicada en npm.
 
 Si el comando devuelve notas nuevas o distintas, esta lista quedó vieja y hay que actualizarla.
 

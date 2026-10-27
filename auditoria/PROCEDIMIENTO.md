@@ -42,10 +42,10 @@ Nota: el filtro de `jq` evita `{}` a propósito, porque `find` lo sustituye por 
 ```sh
 detect_pattern() { awk '/^detect:/{f=1;next} /^[A-Za-z_]+:/{f=0} f&&/^  - /{sub(/^  - /,""); gsub(/^'\''|'\''$/,""); gsub(/\./,"\\."); print}' "$1" | paste -sd'|' -; }
 detect_pattern "$VAULT/services/Wallets embebidas WaaS.md"
-# @privy-io/react-auth|@privy-io/expo|magic-sdk|@web3auth/modal|@dynamic-labs/sdk-react-core
+# @privy-io/react-auth|@privy-io/expo|magic-sdk|@web3auth/modal|@dynamic-labs/sdk-react-core|@privy-io/|@magic-ext/|@web3auth/|@dynamic-labs/
 ```
 
-Si el patrón se arma a mano, cada entrada de `detect:` va tal cual, con `.` escapado (`api\.0x\.org`) y separadas por `|`. Los servicios actuales son siete: `Custodia tercerizada (MPC)`, `Wallets embebidas WaaS`, `Infraestructura AA de terceros`, `Indexadores y nodos de terceros`, `Agregadores de swap y bridge directos`, `On-ramp integrado a mano` y `Feeds de precio de terceros`; el listado real es el contenido de `$VAULT/services/`.
+Si el patrón se arma a mano, cada entrada de `detect:` va tal cual, con `.` escapado (`api\.0x\.org`) y separadas por `|`. Una entrada que termina en `/` (`@privy-io/`) es un prefijo: coincide con cualquier paquete de ese scope. Los servicios actuales son siete: `Custodia tercerizada (MPC)`, `Wallets embebidas WaaS`, `Infraestructura AA de terceros`, `Indexadores y nodos de terceros`, `Agregadores de swap y bridge directos`, `On-ramp integrado a mano` y `Feeds de precio de terceros`; el listado real es el contenido de `$VAULT/services/`.
 
 **1c. Buscar en el código.** Primero qué archivos coinciden, por servicio:
 
@@ -107,9 +107,9 @@ Por cada candidato:
    grep -F '| @tetherto/wdk-wallet-evm-erc-4337 |' "$VAULT/_meta/versions.md"
    ```
 
-   Ese comando devuelve también filas de las tablas por repo, que describen solo los repos de SpaceUY: ignorarlas. Para el proyecto auditado, «mi versión» es la del lockfile del cliente (paso 1a), y se compara con la fila del catálogo (sección «Catálogo: todos los paquetes documentados»): la de 4 columnas, sin repo, con paquete, versión documentada, `latest` de npm y quién lo usa.
+   Ese comando devuelve también filas de las tablas por repo, que describen solo los repos de SpaceUY: ignorarlas. Para el proyecto auditado, «mi versión» es la del lockfile del cliente (paso 1a), y se compara con la fila del catálogo (sección «Catálogo: todos los paquetes documentados»): la de 5 columnas, sin repo, con paquete, versión documentada, `latest` de npm, estado y quién lo usa. Si el estado dice «documentada no publicada en npm», la versión documentada no se puede instalar desde npm; `no publicado (404)` en la columna de npm significa que el paquete no existe en npm.
 
-   Madurez: una versión con `-beta.N` es beta, con `-rc.N` es release candidate, sin sufijo es estable. Una nota con `status: draft` (módulo comunitario) tiene madurez no verificada. Comparar la versión del lockfile del cliente con la documentada y la `latest` de la fila del catálogo.
+   Madurez: una versión con `-beta.N` es beta, con `-rc.N` es release candidate, sin sufijo es estable. Una nota con `status: draft` (no se instala desde npm o su madurez no está clara) tiene madurez no verificada. Comparar la versión del lockfile del cliente con la documentada y la `latest` de la fila del catálogo.
 
 3. **Capacidades de las que depende la migración.** Para cada capacidad concreta que el cliente necesita (por ejemplo, «pasar un `Provider` de ethers existente a `WalletManagerEvm`»), correr el procedimiento «¿Puedo hacer X con mi versión?» de `CLAUDE.md`, con la versión del cliente. La regla es la de ese procedimiento: nunca afirmar que algo funciona en una versión solo porque la doc lo describe. Si el rango entre la versión instalada y la documentada tiene cambios (`[Breaking]` incluidos, listados en `_meta/versions.md`), se verifica la API clonando el tag de esa versión en un directorio temporal, sin instalar dependencias en el proyecto. Ese procedimiento también cubre los cambios entre la versión documentada y la `latest` de npm: `_meta/versions.md` lista entradas del changelog solo hasta la documentada, así que para lo posterior hay que leer las releases de GitHub del paquete.
 
@@ -154,10 +154,11 @@ Cada paso lleva una condición de salida verificable (qué se prueba antes de se
 
 ## Paso 6. Guardar el informe
 
-Copiar la plantilla y completarla:
+Copiar la plantilla y completarla. El informe es confidencial del cliente: va en `auditoria/informes/`, que `.gitignore` excluye, y nunca se commitea en el vault compartido.
 
 ```sh
-cp "$VAULT/auditoria/plantilla-informe.md" "$VAULT/auditoria/<proyecto>-<YYYY-MM-DD>.md"
+mkdir -p "$VAULT/auditoria/informes"
+cp "$VAULT/auditoria/plantilla-informe.md" "$VAULT/auditoria/informes/<proyecto>-<YYYY-MM-DD>.md"
 ```
 
 Datos de cabecera: el commit auditado sale de `git rev-parse HEAD` en el proyecto; la versión del vault es el commit de `wdk-docs` en `last-sync.md`:

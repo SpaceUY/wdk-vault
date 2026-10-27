@@ -68,7 +68,7 @@ copy lives in the origin note, this is only the reverse lookup.
 
 ## Fuga de seed por almacenamiento inseguro
 - La seed nunca sale del dispositivo — forbids → Fuga de seed por almacenamiento inseguro because guardar o enviar la seed sin cifrar fuera del control de la app rompe la garantía
-- backup-cloud no cifra: la app cifra antes — mitigates → Fuga de seed por almacenamiento inseguro because al exigir texto cifrado de origen, el proveedor de nube no recibe la seed en claro, aunque el respaldo sigue exponiendo identificadores, tiempos y accesos
+- backup-cloud no cifra, la app cifra antes — mitigates → Fuga de seed por almacenamiento inseguro because al exigir texto cifrado de origen, el proveedor de nube no recibe la seed en claro, aunque el respaldo sigue exponiendo identificadores, tiempos y accesos
 - wdk-react-native-core — mitigates → Fuga de seed por almacenamiento inseguro because guarda las credenciales cifradas en el keychain del dispositivo
 - wdk-react-native-secure-storage — mitigates → Fuga de seed por almacenamiento inseguro because mantiene el material de la wallet cifrado en el keychain del dispositivo
 - wdk-secret-manager — mitigates → Fuga de seed por almacenamiento inseguro because cifra la seed con una passkey y la limpia de memoria
@@ -147,8 +147,8 @@ copy lives in the origin note, this is only the reverse lookup.
 - wdk — can replace → Wallets embebidas WaaS because reemplaza las cuentas y claves por cadena si la app asume custodia, recuperación y respaldo; la autenticación, el login y la biometría no se reemplazan y siguen a cargo de la app
 - wdk-react-native-core — can replace → Wallets embebidas WaaS because cubre creación, bloqueo y desbloqueo de wallets si la app asume custodia, recuperación y respaldo; no impone autenticación ni biometría, que la app aplica antes de `unlock()`
 
-## backup-cloud no cifra: la app cifra antes
-- wdk-backup-cloud — requires → backup-cloud no cifra: la app cifra antes because sube el string tal cual, sin cifrar ni validar nada
+## backup-cloud no cifra, la app cifra antes
+- wdk-backup-cloud — requires → backup-cloud no cifra, la app cifra antes because sube el string tal cual, sin cifrar ni validar nada
 
 ## pear-wrk-wdk
 - wdk-react-native-core — depends on → pear-wrk-wdk because el worklet Bare que aloja al WDK usa esa capa de transporte

@@ -8,7 +8,7 @@ source:
 ---
 # MOC Billetera self-custodial
 
-Mapa de la espina de la billetera autocustodial construida con el SDK del WDK. Empezar por [[Seed derivada en el dispositivo]], que explica de dónde salen las claves, seguir por la restricción [[La seed nunca sale del dispositivo]] (establecida por [[Diseñar el WDK como autocustodial sin custodio intermediario]]) y por sus consecuencias: las fallas [[Pérdida de fondos por seed sin backup]] y [[Fuga de seed por almacenamiento inseguro]] y la regla [[backup-cloud no cifra: la app cifra antes]]. Las versiones de cada paquete están en `_meta/versions.md`, y las diferencias entre betas en [[MOC Versiones]].
+Mapa de la espina de la billetera autocustodial construida con el SDK del WDK. Empezar por [[Seed derivada en el dispositivo]], que explica de dónde salen las claves, seguir por la restricción [[La seed nunca sale del dispositivo]] (establecida por [[Diseñar el WDK como autocustodial sin custodio intermediario]]) y por sus consecuencias: las fallas [[Pérdida de fondos por seed sin backup]] y [[Fuga de seed por almacenamiento inseguro]] y la regla [[backup-cloud no cifra, la app cifra antes]]. Las versiones de cada paquete están en `_meta/versions.md`, y las diferencias entre betas en [[MOC Versiones]].
 
 ## Núcleo del SDK
 - [[wdk]]
@@ -48,7 +48,7 @@ Mapa de la espina de la billetera autocustodial construida con el SDK del WDK. E
 
 ## Restricciones, fallas y decisión
 - [[La seed nunca sale del dispositivo]]
-- [[backup-cloud no cifra: la app cifra antes]]
+- [[backup-cloud no cifra, la app cifra antes]]
 - [[Pérdida de fondos por seed sin backup]]
 - [[Fuga de seed por almacenamiento inseguro]]
 - [[Diseñar el WDK como autocustodial sin custodio intermediario]]
