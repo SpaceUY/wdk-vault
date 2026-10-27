@@ -18,7 +18,7 @@ from pathlib import Path
 VAULT = Path(__file__).resolve().parent.parent
 SITE_CHANGELOG_URL = "https://docs.wdk.tether.io/overview/changelog.md"
 CHANGELOG_REL = "content/docs/overview/changelog.mdx"
-RELEASE_RE = re.compile(r"(?:[Rr]elease:?\s+v?|release/v)(\d+\.\d+\.\d+)")
+RELEASE_RE = re.compile(r"(?:^[Rr]elease:\s+v?|release/v)(\d+\.\d+\.\d+)")
 CALLOUT_RE = re.compile(r"These pages reflect `([^`]+)`")
 HEADING_RE = re.compile(r"^###\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})")
 GITHUB_LINK_RE = re.compile(r"github\.com/tetherto/([^/\s)]+)/(?:releases/tag|tree)/v?(\d[^)\s]*)")
@@ -543,7 +543,8 @@ def _fetch_npm_latest(packages: list[str]) -> dict[str, str]:
 
 def _site_changelog_top() -> str:
     try:
-        with urllib.request.urlopen(SITE_CHANGELOG_URL, timeout=20) as response:
+        request = urllib.request.Request(SITE_CHANGELOG_URL, headers={"User-Agent": "wdk-vault-versions/1.0"})
+        with urllib.request.urlopen(request, timeout=20) as response:
             return changelog_top_date(response.read().decode("utf-8", errors="replace")) or UNKNOWN
     except (OSError, ValueError):
         return UNKNOWN

@@ -90,6 +90,12 @@ class RepoStateTest(unittest.TestCase):
         self.assertIsNone(result.release)
         self.assertIsNone(result.ahead_of_release)
 
+    def test_repo_state_ignores_docs_commit_mentioning_a_release(self) -> None:
+        repo = make_repo(self.root, "r", ["init", "Update Swidge documentation to release 1.3.0", "x"])
+        result = versions.repo_state(repo)
+        self.assertIsNone(result.release)
+        self.assertIsNone(result.ahead_of_release)
+
     def test_repo_state_newest_release_wins(self) -> None:
         repo = make_repo(self.root, "r", ["Release: v0.3.0", "Release: v0.3.1", "x"])
         self.assertEqual(versions.repo_state(repo).release, "v0.3.1")
@@ -388,6 +394,17 @@ class DocsSiteTest(unittest.TestCase):
     def test_unknown_when_site_unreachable_or_repo_empty(self) -> None:
         self.assertEqual(self.decide("unknown", "2026-10-14")["site_matches_repo"], "unknown")
         self.assertEqual(self.decide("2026-10-14", "")["site_matches_repo"], "unknown")
+
+
+class SiteFetchTest(unittest.TestCase):
+    def test_site_request_sends_a_user_agent(self) -> None:
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b"### October 14, 2026 [#october-14-2026]\n"
+        with mock.patch.object(versions.urllib.request, "urlopen", return_value=response) as opened:
+            top = versions._site_changelog_top()
+        self.assertEqual(top, "2026-10-14")
+        request = opened.call_args.args[0]
+        self.assertTrue(request.get_header("User-agent"))
 
 
 class MainTest(unittest.TestCase):
