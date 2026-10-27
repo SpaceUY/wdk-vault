@@ -1,4 +1,5 @@
 import contextlib
+import http.client
 import importlib.util
 import io
 import json
@@ -29,9 +30,23 @@ def make_repo(root: Path, name: str, subjects: list[str]) -> Path:
     return repo
 
 
+def commit_files(repo: Path, files: dict[str, str], subject: str) -> None:
+    for rel, text in files.items():
+        path = repo / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", subject)
+
+
+def lock(version: str) -> str:
+    return json.dumps({"packages": {"node_modules/@tetherto/wdk-wallet-evm": {"version": version}}})
+
+
 def state(name: str = "repo-a", **overrides: object) -> "versions.RepoState":
     fields = dict(
-        name=name, branch="main", head="a" * 40, head_date="2026-07-01",
+        name=name, branch="main", analyzed_ref="origin/main", head="a" * 40, head_date="2026-07-01",
+        local_head="a" * 40, local_head_date="2026-07-01",
         origin_head=None, behind_origin=None, ahead_origin=None,
         release=None, release_commit=None, release_date=None,
         ahead_of_release=None, package_version=None, dirty=False,
@@ -99,6 +114,46 @@ class RepoStateTest(unittest.TestCase):
     def test_repo_state_newest_release_wins(self) -> None:
         repo = make_repo(self.root, "r", ["Release: v0.3.0", "Release: v0.3.1", "x"])
         self.assertEqual(versions.repo_state(repo).release, "v0.3.1")
+
+    def test_revert_of_release_is_not_a_release(self) -> None:
+        repo = make_repo(self.root, "r", ["Release: v0.3.1", 'Revert "Release: v0.4.0"',
+                                          'Revert "Merge pull request #9 from tetherto/release/v0.5.0"'])
+        self.assertEqual(versions.repo_state(repo).release, "v0.3.1")
+        self.assertIsNone(versions.RELEASE_RE.search('Revert "Release: v0.4.0"'))
+
+    def test_repo_state_and_lockfiles_follow_origin_not_local_main(self) -> None:
+        src = make_repo(self.root, "src", [])
+        commit_files(src, {"package.json": '{"version": "0.3.1"}', "package-lock.json": lock("1.0.0-beta.11")},
+                     "Release: v0.3.1")
+        origin = self.root / "origin.git"
+        git(self.root, "clone", "-q", "--bare", str(src), str(origin))
+        local = self.root / "wdk-x"
+        git(self.root, "clone", "-q", str(origin), str(local))
+        old_head = versions._git(local, "rev-parse", "HEAD")
+        git(src, "remote", "add", "origin", str(origin))
+        commit_files(src, {"package.json": '{"version": "0.4.0"}', "package-lock.json": lock("1.0.0-beta.20")},
+                     "Release: v0.4.0")
+        git(src, "push", "-q", "origin", "main")
+        git(local, "fetch", "-q", "origin")
+
+        result = versions.repo_state(local)
+        self.assertEqual(result.analyzed_ref, "origin/main")
+        self.assertEqual(result.release, "v0.4.0")
+        self.assertEqual(result.ahead_of_release, 0)
+        self.assertEqual(result.package_version, "0.4.0")
+        self.assertEqual(result.head, result.origin_head)
+        self.assertEqual(result.local_head, old_head)
+        self.assertEqual(result.behind_origin, 1)
+        self.assertEqual(result.ahead_origin, 0)
+        found, _ = versions.scan_lockfiles(local, result.head)
+        self.assertEqual(found["@tetherto/wdk-wallet-evm"], ["1.0.0-beta.20"])
+
+    def test_repo_state_without_origin_flags_local_ref(self) -> None:
+        repo = make_repo(self.root, "r", ["init"])
+        result = versions.repo_state(repo)
+        self.assertEqual(result.analyzed_ref, "main (sin origin)")
+        text = versions.render_last_sync([result], {}, "2026-10-26")
+        self.assertIn("analyzed_ref: main (sin origin)", text)
 
     def test_repo_state_reports_dirty_and_package_version(self) -> None:
         repo = make_repo(self.root, "r", ["init"])
@@ -303,8 +358,11 @@ class LockedPackagesTest(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.repo = Path(tmp.name) / "repo"
-        self.repo.mkdir()
+        self.repo = make_repo(Path(tmp.name), "repo", ["init"])
+
+    def commit(self) -> None:
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "fixture")
 
     def test_locked_packages_npm_and_git_pin(self) -> None:
         lock = {"packages": {
@@ -315,6 +373,7 @@ class LockedPackagesTest(unittest.TestCase):
             "node_modules/ethers": {"version": "6.14.4"},
         }}
         (self.repo / "package-lock.json").write_text(json.dumps(lock), encoding="utf-8")
+        self.commit()
         found = versions.locked_packages(self.repo)
         self.assertEqual(found["@tetherto/wdk-wallet-evm"], ["1.0.0-beta.11", "1.0.0-beta.9"])
         self.assertEqual(found["@tetherto/wdk-wallet-evm-erc-4337"], ["1.0.0-beta.5"])
@@ -328,6 +387,8 @@ class LockedPackagesTest(unittest.TestCase):
         nested.mkdir(parents=True)
         (nested / "package.json").write_text(json.dumps({"dependencies": {
             "@tetherto/ignored": "github:tetherto/y#nope"}}), encoding="utf-8")
+        git(self.repo, "add", "-A", "-f")
+        git(self.repo, "commit", "-q", "-m", "pins")
         found = versions.locked_packages(self.repo)
         self.assertEqual(found["@tetherto/wdk-react-native-core"], ["git:temp-rw-patch"])
         self.assertNotIn("@tetherto/ignored", found)
@@ -346,6 +407,7 @@ class LockedPackagesTest(unittest.TestCase):
             "  '@tetherto/pear-wrk-wdk@1.0.0-beta.8(bare-buffer@3.4.4)':\n    dependencies: {}\n"
         )
         (self.repo / "pnpm-lock.yaml").write_text(text, encoding="utf-8")
+        self.commit()
         found = versions.locked_packages(self.repo)
         self.assertEqual(found, {
             "@tetherto/pear-wrk-wdk": ["1.0.0-beta.8"],
@@ -354,6 +416,7 @@ class LockedPackagesTest(unittest.TestCase):
 
     def test_malformed_package_lock_is_reported_not_empty(self) -> None:
         (self.repo / "package-lock.json").write_text("{not json", encoding="utf-8")
+        self.commit()
         found, problems = versions.scan_lockfiles(self.repo)
         self.assertEqual(found, {})
         self.assertEqual([f for f, _ in problems], ["package-lock.json"])
@@ -364,14 +427,22 @@ class LockedPackagesTest(unittest.TestCase):
 
     def test_lockfile_v1_without_packages_is_reported(self) -> None:
         (self.repo / "package-lock.json").write_text('{"lockfileVersion": 1, "dependencies": {}}', encoding="utf-8")
+        self.commit()
         _, problems = versions.scan_lockfiles(self.repo)
         self.assertEqual(len(problems), 1)
         self.assertIn("lockfileVersion 1", problems[0][1])
 
     def test_unsupported_pnpm_lock_is_reported(self) -> None:
         (self.repo / "pnpm-lock.yaml").write_text("lockfileVersion: '6.0'\n", encoding="utf-8")
+        self.commit()
         _, problems = versions.scan_lockfiles(self.repo)
         self.assertEqual([f for f, _ in problems], ["pnpm-lock.yaml"])
+
+    def test_lockfile_scan_ignores_working_tree(self) -> None:
+        (self.repo / "package-lock.json").write_text(lock("1.0.0-beta.11"), encoding="utf-8")
+        self.commit()
+        (self.repo / "package-lock.json").write_text(lock("1.0.0-beta.99"), encoding="utf-8")
+        self.assertEqual(versions.locked_packages(self.repo), {"@tetherto/wdk-wallet-evm": ["1.0.0-beta.11"]})
 
     def test_clean_repo_without_lockfile_has_no_problems(self) -> None:
         self.assertEqual(versions.scan_lockfiles(self.repo), ({}, []))
@@ -466,6 +537,31 @@ class RenderTest(unittest.TestCase):
         other = [line for line in text.splitlines() if line.startswith("| no-release")][0]
         self.assertIn("origin/main", other)
 
+    def test_repo_section_says_local_checkout_is_behind_origin(self) -> None:
+        s = state("wdk-x", origin_head="b" * 40, behind_origin=3, ahead_origin=0, local_head="c" * 40)
+        text = versions.render_versions_md([s, state("wdk-y", origin_head="a" * 40, behind_origin=0, ahead_origin=0)],
+                                           {}, {}, [], {})
+        row = [line for line in text.splitlines() if line.startswith("| wdk-x |")][0]
+        self.assertIn("ccccccc", row)
+        self.assertIn("aaaaaaa", row)
+        section = text.split("## wdk-x\n", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("tu checkout local está 3 commits detrás de origin/main; "
+                      "las versiones de esta tabla son las de origin/main", section)
+        other = text.split("## wdk-y\n", 1)[1].split("\n## ", 1)[0]
+        self.assertNotIn("tu checkout local", other)
+
+    def test_catalog_flags_documented_newer_than_npm(self) -> None:
+        pkg = "@tetherto/wdk-mcp-toolkit"
+        documented = {**self.documented(), pkg: versions.DocVersion(pkg, "1.0.0-beta.1", "callout-beta:x/index.mdx")}
+        npm = {pkg: "0.0.0", "@tetherto/wdk-wallet-evm": "1.0.0-beta.24", "@tetherto/wdk-swidge-lifi": "no publicado (404)"}
+        text = versions.render_versions_md([state()], {}, documented, self.entries(), npm)
+        catalog = text.split("Catálogo: todos los paquetes documentados", 1)[1]
+        row = [line for line in catalog.splitlines() if line.startswith(f"| {pkg} |")][0]
+        self.assertIn("| documentada no publicada en npm |", row)
+        for other in ("@tetherto/wdk-wallet-evm", "@tetherto/wdk-swidge-lifi"):
+            line = [line for line in catalog.splitlines() if line.startswith(f"| {other} |")][0]
+            self.assertNotIn("documentada no publicada", line)
+
     def test_git_pin_is_not_compared(self) -> None:
         text = versions.render_versions_md(
             [state()], {"repo-a": {"@tetherto/wdk-wallet-evm": ["git:temp-rw-patch"]}},
@@ -488,6 +584,7 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(base[1], "branch: main")
         self.assertEqual(base[2], f"commit: {'a' * 40}")
         self.assertEqual(base[3], "date: 2026-07-01")
+        self.assertEqual(base[4], "analyzed_ref: origin/main")
         self.assertIn("deployed_release: v0.3.1", base)
         self.assertIn("ahead_of_release: 49", base)
         self.assertIn("analyzed_on: 2026-10-26", base)
@@ -520,6 +617,10 @@ class DocsSiteTest(unittest.TestCase):
 
 
 class SiteFetchTest(unittest.TestCase):
+    def test_site_http_exception_returns_unknown(self) -> None:
+        with mock.patch.object(versions.urllib.request, "urlopen", side_effect=http.client.BadStatusLine("x")):
+            self.assertEqual(versions._site_changelog_top(), "unknown")
+
     def test_site_request_sends_a_user_agent(self) -> None:
         response = mock.MagicMock()
         response.__enter__.return_value.read.return_value = b"### October 14, 2026 [#october-14-2026]\n"
@@ -530,6 +631,20 @@ class SiteFetchTest(unittest.TestCase):
         self.assertTrue(request.get_header("User-agent"))
 
 
+class NpmTest(unittest.TestCase):
+    def run_npm(self, returncode: int, stdout: str = "", stderr: str = "") -> str:
+        done = subprocess.CompletedProcess([], returncode, stdout, stderr)
+        with mock.patch.object(versions.subprocess, "run", return_value=done):
+            return versions._npm_latest_one("@tetherto/x")[1]
+
+    def test_npm_cells_distinguish_version_404_and_error(self) -> None:
+        self.assertEqual(self.run_npm(0, "1.2.3\n"), "1.2.3")
+        self.assertEqual(self.run_npm(1, stderr="npm error code E404\nnpm error 404 Not Found"), "no publicado (404)")
+        self.assertEqual(self.run_npm(1, stderr="npm error code ETIMEDOUT"), "error")
+        with mock.patch.object(versions.subprocess, "run", side_effect=OSError("no npm")):
+            self.assertEqual(versions._npm_latest_one("@tetherto/x")[1], "error")
+
+
 class MainTest(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -538,11 +653,159 @@ class MainTest(unittest.TestCase):
         self.vault = self.workspace / "wdk-vault"
         (self.vault / "_meta").mkdir(parents=True)
 
-    def run_main(self, argv: list[str]) -> tuple[int, str]:
+    def run_main(self, argv: list[str], npm: dict | None = None) -> tuple[int, str]:
         err = io.StringIO()
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err), \
+                mock.patch.object(versions, "_site_changelog_top", return_value="2026-10-06"), \
+                mock.patch.object(versions, "_fetch_npm_latest", return_value=npm or {}) as fetch:
             code = versions.main(argv, self.vault)
+        if "--npm" not in argv:
+            fetch.assert_not_called()
         return code, err.getvalue()
+
+    def make_docs(self) -> Path:
+        docs = make_repo(self.workspace, "wdk-docs", [])
+        commit_files(docs, {
+            "content/docs/sdk/wallet-modules/wallet-evm/index.mdx":
+                "These pages reflect `@tetherto/wdk-wallet-evm@1.0.0-beta.20`.\n",
+            "content/docs/overview/changelog.mdx": CHANGELOG,
+            "package-lock.json": json.dumps({"packages": {
+                "node_modules/@tetherto/docs-seo-x": {"version": "1.0.0"}}}),
+        }, "docs")
+        return docs
+
+    def write_repos_txt(self, text: str) -> None:
+        (self.vault / "_meta" / "repos.txt").write_text(text, encoding="utf-8")
+
+    def read(self, name: str) -> str:
+        return (self.vault / "_meta" / name).read_text(encoding="utf-8")
+
+    def section(self, name: str) -> str:
+        return self.read("last-sync.md").split(f"\n## {name}\n", 1)[1].split("\n## ", 1)[0]
+
+    def test_checkpoint_named_repo_only_advances_that_repo(self) -> None:
+        a = make_repo(self.workspace, "wdk-a", ["init", "Release: v0.3.1"])
+        b = make_repo(self.workspace, "wdk-b", ["init"])
+        self.make_docs()
+        self.write_repos_txt("wdk-a\nwdk-b\nwdk-docs docs-only\n")
+        self.assertEqual(self.run_main(["--checkpoint"])[0], 0)
+        old_b = self.section("wdk-b")
+        old_b_lines = [line for line in old_b.splitlines() if line.startswith(("commit:", "date:", "analyzed_on:"))]
+        self.assertEqual(len(old_b_lines), 3)
+        text = self.read("last-sync.md").replace("analyzed_on: ", "analyzed_on: 1999-01-01 was ")
+        (self.vault / "_meta" / "last-sync.md").write_text(text, encoding="utf-8")
+        git(a, "commit", "-q", "--allow-empty", "-m", "Release: v0.4.0")
+        git(b, "commit", "-q", "--allow-empty", "-m", "Release: v9.9.9")
+
+        code, _ = self.run_main(["--checkpoint", "wdk-a"])
+        self.assertEqual(code, 0)
+        new_a, new_b = self.section("wdk-a"), self.section("wdk-b")
+        self.assertIn(f"commit: {versions._git(a, 'rev-parse', 'HEAD')}", new_a)
+        self.assertIn("deployed_release: v0.4.0", new_a)
+        self.assertNotIn("1999-01-01", new_a)
+        for line in old_b_lines:
+            expected = line.replace("analyzed_on: ", "analyzed_on: 1999-01-01 was ")
+            self.assertIn(expected + "\n", new_b + "\n")
+        self.assertNotIn(f"commit: {versions._git(b, 'rev-parse', 'HEAD')}", new_b.splitlines())
+        self.assertIn("deployed_release: v9.9.9", new_b)
+        self.assertIn("1999-01-01", self.section("wdk-docs"))
+
+    def test_checkpoint_unknown_repo_exits_2(self) -> None:
+        make_repo(self.workspace, "wdk-a", ["init"])
+        self.make_docs()
+        code, err = self.run_main(["--checkpoint", "wdk-nope"])
+        self.assertEqual(code, 2)
+        self.assertIn("wdk-nope", err)
+        self.assertFalse((self.vault / "_meta" / "last-sync.md").exists())
+
+    def test_npm_header_and_values_kept_without_npm(self) -> None:
+        make_repo(self.workspace, "wdk-a", ["init"])
+        self.make_docs()
+        npm = {"@tetherto/wdk-wallet-evm": "1.0.0-beta.24", "@tetherto/wdk-wallet": "no publicado (404)"}
+        self.assertEqual(self.run_main(["--npm"], npm)[0], 0)
+        today = versions.date.today().isoformat()
+        self.assertIn(f"npm consultado: sí ({today})", self.read("versions.md"))
+        data = json.loads(self.read("versions.json"))
+        self.assertEqual(data["npm"], {"queried_on": today, "latest": npm})
+
+        data["npm"]["queried_on"] = "2026-10-01"
+        (self.vault / "_meta" / "versions.json").write_text(json.dumps(data), encoding="utf-8")
+        self.assertEqual(self.run_main([])[0], 0)
+        text = self.read("versions.md")
+        self.assertIn("npm consultado: no", text)
+        self.assertIn("valores npm del 2026-10-01", text)
+        row = [line for line in text.split("Catálogo", 1)[1].splitlines()
+               if line.startswith("| @tetherto/wdk-wallet-evm |")][0]
+        self.assertIn("| 1.0.0-beta.24 |", row)
+        self.assertEqual(json.loads(self.read("versions.json"))["npm"]["queried_on"], "2026-10-01")
+
+    def test_npm_header_without_any_values(self) -> None:
+        make_repo(self.workspace, "wdk-a", ["init"])
+        self.make_docs()
+        self.run_main([])
+        text = self.read("versions.md")
+        self.assertIn("npm consultado: no", text)
+        self.assertNotIn("valores npm del", text)
+
+    def test_unanalyzable_repo_reported_and_skipped(self) -> None:
+        make_repo(self.workspace, "wdk-a", ["init"])
+        make_repo(self.workspace, "wdk-empty", [])
+        self.make_docs()
+        self.write_repos_txt("wdk-a\nwdk-empty\nwdk-docs\n")
+        code, err = self.run_main([])
+        self.assertEqual(code, 0)
+        self.assertIn("wdk-empty: no analizable:", err)
+        self.assertIn("wdk-empty: no analizable:", self.read("versions.md"))
+        self.assertEqual(sorted(json.loads(self.read("versions.json"))["repos"]), ["wdk-a", "wdk-docs"])
+        (self.vault / "_meta" / "last-sync.md").write_text(
+            "# last-sync\n\n## wdk-empty\nbranch: main\ncommit: abc\ndate: 2026-01-01\nanalyzed_on: 2026-01-02\n",
+            encoding="utf-8")
+        self.assertEqual(self.run_main(["--checkpoint"])[0], 0)
+        self.assertEqual(self.section("wdk-empty").split(),
+                         ["branch:", "main", "commit:", "abc", "date:", "2026-01-01", "analyzed_on:", "2026-01-02"])
+
+    def test_repos_txt_limits_discovery(self) -> None:
+        make_repo(self.workspace, "wdk-a", ["init"])
+        make_repo(self.workspace, "client-project", ["init"])
+        self.make_docs()
+        self.write_repos_txt("# repos del vault\nwdk-a\n\nwdk-docs docs-only  # solo doc\n")
+        code, err = self.run_main([])
+        self.assertEqual(code, 0)
+        self.assertNotIn("repos.txt", err)
+        self.assertEqual(sorted(json.loads(self.read("versions.json"))["repos"]), ["wdk-a", "wdk-docs"])
+
+    def test_missing_repos_txt_warns_and_autodiscovers(self) -> None:
+        make_repo(self.workspace, "wdk-a", ["init"])
+        make_repo(self.workspace, "client-project", ["init"])
+        self.make_docs()
+        code, err = self.run_main([])
+        self.assertEqual(code, 0)
+        self.assertIn("warning: falta _meta/repos.txt", err)
+        self.assertEqual(sorted(json.loads(self.read("versions.json"))["repos"]),
+                         ["client-project", "wdk-a", "wdk-docs"])
+
+    def test_docs_only_repo_skips_lockfile_scan(self) -> None:
+        make_repo(self.workspace, "wdk-a", ["init"])
+        self.make_docs()
+        self.write_repos_txt("wdk-a\nwdk-docs docs-only\n")
+        self.run_main([])
+        data = json.loads(self.read("versions.json"))
+        self.assertEqual(data["repos"]["wdk-docs"]["locked"], {})
+        self.assertNotIn("@tetherto/docs-seo-x", data["packages"])
+        self.assertIn("docs-only", self.read("versions.md").split("## wdk-docs\n", 1)[1].split("\n## ", 1)[0])
+        self.write_repos_txt("wdk-a\nwdk-docs\n")
+        self.run_main([])
+        self.assertIn("@tetherto/docs-seo-x", json.loads(self.read("versions.json"))["packages"])
+
+    def test_docs_read_from_analyzed_ref(self) -> None:
+        make_repo(self.workspace, "wdk-a", ["init"])
+        docs = self.make_docs()
+        (docs / "content/docs/sdk/wallet-modules/wallet-evm/index.mdx").write_text(
+            "These pages reflect `@tetherto/wdk-wallet-evm@1.0.0-beta.99`.\n", encoding="utf-8")
+        self.run_main([])
+        catalog = self.read("versions.md").split("Catálogo", 1)[1]
+        row = [line for line in catalog.splitlines() if line.startswith("| @tetherto/wdk-wallet-evm |")][0]
+        self.assertIn("1.0.0-beta.20", row)
 
     def test_main_fails_cleanly_without_docs(self) -> None:
         make_repo(self.workspace, "wdk-a", ["init"])
@@ -554,17 +817,17 @@ class MainTest(unittest.TestCase):
         repo = make_repo(self.workspace, "wdk-a", ["init", "Release: v0.3.1", "a"])
         (repo / "package-lock.json").write_text(json.dumps({"packages": {
             "node_modules/@tetherto/wdk-wallet-evm": {"version": "1.0.0-beta.11"}}}), encoding="utf-8")
-        docs = make_repo(self.workspace, "wdk-docs", ["init"])
-        page = docs / "content" / "docs" / "sdk" / "wallet-modules" / "wallet-evm" / "index.mdx"
-        page.parent.mkdir(parents=True)
-        page.write_text("These pages reflect `@tetherto/wdk-wallet-evm@1.0.0-beta.20`.\n"
-                        "npm install @tetherto/wdk-mcp-toolkit @langchain/core\n", encoding="utf-8")
-        (docs / "content" / "docs" / "overview").mkdir()
-        (docs / "content" / "docs" / "overview" / "changelog.mdx").write_text(CHANGELOG, encoding="utf-8")
+        docs = make_repo(self.workspace, "wdk-docs", [])
+        commit_files(docs, {
+            "content/docs/sdk/wallet-modules/wallet-evm/index.mdx":
+                "These pages reflect `@tetherto/wdk-wallet-evm@1.0.0-beta.20`.\n"
+                "npm install @tetherto/wdk-mcp-toolkit @langchain/core\n",
+            "content/docs/overview/changelog.mdx": CHANGELOG,
+        }, "docs")
         code, _ = self.run_main([])
         self.assertEqual(code, 0)
         data = json.loads((self.vault / "_meta" / "versions.json").read_text(encoding="utf-8"))
-        self.assertEqual(sorted(data), ["generated", "packages", "repos"])
+        self.assertEqual(sorted(data), ["generated", "npm", "packages", "repos"])
         self.assertEqual(sorted(data["repos"]), ["wdk-a", "wdk-docs"])
         self.assertEqual(data["repos"]["wdk-a"]["release"], "v0.3.1")
         self.assertEqual(data["packages"], sorted(set(data["packages"])))

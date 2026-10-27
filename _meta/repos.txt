@@ -1,0 +1,16 @@
+# Repos que analiza _meta/versions.py: un directorio del workspace por línea, marcas opcionales después.
+# Clonar en el workspace el proyecto de un cliente para auditarlo NO lo agrega: solo cuenta lo listado aquí.
+# Marca `docs-only`: no se escanean sus lockfiles (sus paquetes no son dependencias WDK).
+wdk-app-node
+wdk-data-shard-wrk
+wdk-docs docs-only
+wdk-indexer-processor-wrk
+wdk-indexer-wrk-base
+wdk-indexer-wrk-btc
+wdk-indexer-wrk-evm
+wdk-indexer-wrk-solana
+wdk-indexer-wrk-spark
+wdk-indexer-wrk-ton
+wdk-indexer-wrk-tron
+wdk-ork-wrk
+wdk-qualification-exercise

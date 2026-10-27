@@ -1,14 +1,19 @@
 """Genera _meta/versions.md, _meta/versions.json y (con --checkpoint) _meta/last-sync.md.
 
-Solo lectura sobre los repos del workspace: nunca hace fetch ni escribe en ellos.
+Solo lectura sobre los repos del workspace: nunca hace fetch ni escribe en ellos. Analiza
+`origin/<rama>` (o la rama local si no hay origin) con `git show`/`git ls-tree`/`git archive`:
+nunca lee el arbol de trabajo. Los repos salen de `_meta/repos.txt`.
 Red solo detras de --npm (npm view) y --checkpoint (GET del changelog del sitio).
 """
 import argparse
+import http.client
+import io
 import json
-import os
 import re
 import subprocess
 import sys
+import tarfile
+import tempfile
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
@@ -18,7 +23,7 @@ from pathlib import Path
 VAULT = Path(__file__).resolve().parent.parent
 SITE_CHANGELOG_URL = "https://docs.wdk.tether.io/overview/changelog.md"
 CHANGELOG_REL = "content/docs/overview/changelog.mdx"
-RELEASE_RE = re.compile(r"(?:^[Rr]elease:\s+v?|release/v)(\d+\.\d+\.\d+)")
+RELEASE_RE = re.compile(r"^(?![Rr]evert\b)(?:[Rr]elease:\s+v?|.*?release/v)(\d+\.\d+\.\d+)")
 CALLOUT_RE = re.compile(r"These pages reflect `([^`]+)`")
 HEADING_RE = re.compile(r"^###\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})")
 GITHUB_LINK_RE = re.compile(r"github\.com/tetherto/([^/\s)]+)/(?:releases/tag|tree)/v?(\d[^)\s]*)")
@@ -47,14 +52,21 @@ MONTHS = {m: i for i, m in enumerate(
      "August", "September", "October", "November", "December"], start=1)}
 SUMMARY_LEN = 160
 UNKNOWN = "unknown"
+NPM_404 = "no publicado (404)"
+NPM_ERROR = "error"
+NPM_VERSION_RE = re.compile(r"^v?\d+\.\d+\.\d+")
+DOCS_ONLY = "docs-only"
 
 
 @dataclass(frozen=True)
 class RepoState:
     name: str
     branch: str
+    analyzed_ref: str
     head: str
     head_date: str
+    local_head: str
+    local_head_date: str
     origin_head: str | None
     behind_origin: int | None
     ahead_origin: int | None
@@ -148,27 +160,35 @@ def _package_version(repo: Path, branch: str) -> str | None:
     return version if isinstance(version, str) else None
 
 
+def _commit_date(repo: Path, rev: str) -> str:
+    return _git(repo, "log", "-1", "--format=%cd", "--date=short", rev)
+
+
 def repo_state(repo: Path, branch: str = "main") -> RepoState:
-    head = _git(repo, "rev-parse", branch)
-    head_date = _git(repo, "log", "-1", "--format=%cd", "--date=short", branch)
+    """Todo sale de `origin/<branch>` (o de la rama local si no hay origin); HEAD local solo para la brecha."""
     origin = f"origin/{branch}"
     origin_head = _git_optional(repo, "rev-parse", "--verify", "-q", origin)
-    behind = _count(repo, f"{branch}..{origin}") if origin_head else None
-    ahead = _count(repo, f"{origin}..{branch}") if origin_head else None
-    release = _find_release(repo, branch)
+    head = _git(repo, "rev-parse", origin if origin_head else branch)
+    local_head = _git(repo, "rev-parse", "HEAD")
+    behind = _count(repo, f"HEAD..{origin}") if origin_head else None
+    ahead = _count(repo, f"{origin}..HEAD") if origin_head else None
+    release = _find_release(repo, head)
     return RepoState(
         name=repo.name,
         branch=branch,
+        analyzed_ref=origin if origin_head else f"{branch} (sin origin)",
         head=head,
-        head_date=head_date,
+        head_date=_commit_date(repo, head),
+        local_head=local_head,
+        local_head_date=_commit_date(repo, local_head),
         origin_head=origin_head,
         behind_origin=behind,
         ahead_origin=ahead,
         release=release[0] if release else None,
         release_commit=release[1] if release else None,
         release_date=release[2] if release else None,
-        ahead_of_release=_count(repo, f"{release[1]}..{branch}") if release else None,
-        package_version=_package_version(repo, branch),
+        ahead_of_release=_count(repo, f"{release[1]}..{head}") if release else None,
+        package_version=_package_version(repo, head),
         dirty=bool(_git(repo, "--no-optional-locks", "status", "--porcelain")),
     )
 
@@ -176,16 +196,26 @@ def repo_state(repo: Path, branch: str = "main") -> RepoState:
 # --------------------------------------------------------------- lockfiles
 
 LockProblem = tuple[str, str]
+READ_ERRORS = (json.JSONDecodeError, subprocess.CalledProcessError, UnicodeDecodeError)
 
 
-def _npm_lock_versions(repo: Path) -> tuple[dict[str, list[str]], list[LockProblem]]:
+def _show(repo: Path, ref: str, path: str) -> str:
+    """Contenido de `path` en `ref`; nunca el del arbol de trabajo."""
+    result = subprocess.run(["git", "show", f"{ref}:{path}"], cwd=repo, capture_output=True, check=True)
+    return result.stdout.decode("utf-8")
+
+
+def _tree_files(repo: Path, ref: str) -> set[str]:
+    return set(filter(None, _git(repo, "ls-tree", "-r", "-z", "--name-only", ref).split("\0")))
+
+
+def _npm_lock_versions(repo: Path, ref: str, files: set[str]) -> tuple[dict[str, list[str]], list[LockProblem]]:
     name = "package-lock.json"
-    path = repo / name
-    if not path.is_file():
+    if name not in files:
         return {}, []
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as error:
+        data = json.loads(_show(repo, ref, name))
+    except READ_ERRORS as error:
         return {}, [(name, f"no se pudo leer: {type(error).__name__}")]
     packages = data.get("packages") if isinstance(data, dict) else None
     if not isinstance(packages, dict):
@@ -210,14 +240,13 @@ def _npm_lock_versions(repo: Path) -> tuple[dict[str, list[str]], list[LockProbl
     return found, []
 
 
-def _pnpm_lock_versions(repo: Path) -> tuple[dict[str, list[str]], list[LockProblem]]:
+def _pnpm_lock_versions(repo: Path, ref: str, files: set[str]) -> tuple[dict[str, list[str]], list[LockProblem]]:
     name = "pnpm-lock.yaml"
-    path = repo / name
-    if not path.is_file():
+    if name not in files:
         return {}, []
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError) as error:
+        lines = _show(repo, ref, name).splitlines()
+    except (subprocess.CalledProcessError, UnicodeDecodeError) as error:
         return {}, [(name, f"no se pudo leer: {type(error).__name__}")]
     header = next((m for m in map(PNPM_VERSION_RE.match, lines) if m), None)
     if header is None or int(header.group(1)) < 9:
@@ -237,15 +266,15 @@ def _pnpm_lock_versions(repo: Path) -> tuple[dict[str, list[str]], list[LockProb
     return {n: sorted(v, key=version_key, reverse=True) for n, v in sorted(collected.items())}, []
 
 
-def _git_pins(repo: Path) -> dict[str, list[str]]:
+def _git_pins(repo: Path, ref: str, files: set[str]) -> dict[str, list[str]]:
     pins: dict[str, list[str]] = {}
-    for root, dirs, files in os.walk(repo):
-        dirs[:] = [d for d in dirs if d not in ("node_modules", ".git")]
-        if "package.json" not in files:
+    for path in sorted(files):
+        parts = path.split("/")
+        if parts[-1] != "package.json" or "node_modules" in parts:
             continue
         try:
-            data = json.loads((Path(root) / "package.json").read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+            data = json.loads(_show(repo, ref, path))
+        except READ_ERRORS:
             continue
         if not isinstance(data, dict):
             continue
@@ -262,18 +291,19 @@ def _git_pins(repo: Path) -> dict[str, list[str]]:
     return pins
 
 
-def scan_lockfiles(repo: Path) -> tuple[dict[str, list[str]], list[LockProblem]]:
-    """Paquetes `@tetherto/*` fijados y los lockfiles que no se pudieron leer: (archivo, motivo)."""
-    found, problems = _npm_lock_versions(repo)
-    pnpm, pnpm_problems = _pnpm_lock_versions(repo)
+def scan_lockfiles(repo: Path, ref: str = "HEAD") -> tuple[dict[str, list[str]], list[LockProblem]]:
+    """Paquetes `@tetherto/*` fijados en `ref` y los lockfiles que no se pudieron leer: (archivo, motivo)."""
+    files = _tree_files(repo, ref)
+    found, problems = _npm_lock_versions(repo, ref, files)
+    pnpm, pnpm_problems = _pnpm_lock_versions(repo, ref, files)
     for name, vers in pnpm.items():
         found[name] = list(dict.fromkeys(found.get(name, []) + vers))
-    found.update(_git_pins(repo))
+    found.update(_git_pins(repo, ref, files))
     return dict(sorted(found.items())), problems + pnpm_problems
 
 
-def locked_packages(repo: Path) -> dict[str, list[str]]:
-    return scan_lockfiles(repo)[0]
+def locked_packages(repo: Path, ref: str = "HEAD") -> dict[str, list[str]]:
+    return scan_lockfiles(repo, ref)[0]
 
 
 # -------------------------------------------------------------------- docs
@@ -493,24 +523,37 @@ def _doc_cell(doc: DocVersion | None) -> str:
     return f"{doc.version or '—'} ({doc.source})"
 
 
-def _repos_table(states: list[RepoState]) -> list[str]:
+def _repos_table(states: list[RepoState], unanalyzable: dict[str, str]) -> list[str]:
     lines = [
         "## Repos: mi versión vs desplegada",
         "",
-        "| repo | HEAD local | release desplegada (+N commits) | origin/main (atrás/adelante) | sucio |",
+        "| repo | ref analizada (commit, fecha) | release desplegada (+N commits) | HEAD local (atrás/adelante de origin) | sucio |",
         "|---|---|---|---|---|",
     ]
     for s in states:
         if s.release:
             released = f"{s.release} + {s.ahead_of_release} commits ({s.release_date})"
         else:
-            released = f"sin release (referencia: origin/{s.branch})"
+            released = f"sin release (referencia: {s.analyzed_ref})"
+        local = f"{s.local_head[:7]} ({s.local_head_date})"
         if s.origin_head is None:
-            origin = f"sin origin/{s.branch}"
+            local += f": sin origin/{s.branch}"
         else:
-            origin = f"{s.origin_head[:7]}: atrás {s.behind_origin} / adelante {s.ahead_origin}"
-        lines.append(f"| {s.name} | {s.head[:7]} ({s.head_date}) | {released} | {origin} | {'sí' if s.dirty else 'no'} |")
+            local += f": atrás {s.behind_origin} / adelante {s.ahead_origin}"
+        lines.append(f"| {s.name} | {s.analyzed_ref}: {s.head[:7]} ({s.head_date}) | {released} | {local} "
+                     f"| {'sí' if s.dirty else 'no'} |")
+    if unanalyzable:
+        lines += [""] + [f"- {name}: no analizable: {reason}" for name, reason in sorted(unanalyzable.items())]
     return lines
+
+
+def _local_gap(s: RepoState) -> list[str]:
+    """Aviso cuando el checkout local no coincide con la ref analizada."""
+    parts = [f"{n} commits {word}" for n, word in ((s.behind_origin, "detrás"), (s.ahead_origin, "adelante")) if n]
+    if not parts:
+        return []
+    return [f"tu checkout local está {' y '.join(parts)} de {s.analyzed_ref}; "
+            f"las versiones de esta tabla son las de {s.analyzed_ref}", ""]
 
 
 def _range_cell(changes: list[ChangelogEntry]) -> str:
@@ -541,11 +584,15 @@ def _package_row(package: str, mine: list[str], documented: dict[str, DocVersion
 def _repo_sections(states: list[RepoState], locked_by_repo: dict[str, dict[str, list[str]]],
                    documented: dict[str, DocVersion], entries: list[ChangelogEntry],
                    npm_latest: dict[str, str],
-                   lock_problems: dict[str, list[LockProblem]]) -> tuple[list[str], list[str]]:
+                   lock_problems: dict[str, list[LockProblem]],
+                   skipped: set[str]) -> tuple[list[str], list[str]]:
     lines: list[str] = []
     breaking_lines: list[str] = []
     for s in states:
-        lines += [f"## {s.name}", ""]
+        lines += [f"## {s.name}", ""] + _local_gap(s)
+        if s.name in skipped:
+            lines += [f"Lockfiles no escaneados (`{DOCS_ONLY}` en `_meta/repos.txt`).", ""]
+            continue
         locked = locked_by_repo.get(s.name, {})
         problems = lock_problems.get(s.name, [])
         lines += [f"lockfile ilegible: {file} ({reason})" for file, reason in problems]
@@ -570,29 +617,43 @@ def _catalog_table(catalog: dict[str, DocVersion], locked_by_repo: dict[str, dic
     lines = [
         "## Catálogo: todos los paquetes documentados",
         "",
-        "| paquete | documentada (fuente) | npm latest | lo uso en |",
-        "|---|---|---|---|",
+        "| paquete | documentada (fuente) | npm latest | estado | lo uso en |",
+        "|---|---|---|---|---|",
     ]
     for package, doc in catalog.items():
         used = [f"{repo} {', '.join(locked[package])}" for repo, locked in locked_by_repo.items() if package in locked]
-        lines.append(f"| {package} | {_doc_cell(doc)} | {npm_latest.get(package) or '—'} | {'; '.join(used) or 'no instalado'} |")
+        latest = npm_latest.get(package) or "—"
+        lines.append(f"| {package} | {_doc_cell(doc)} | {latest} | {_npm_state(doc, latest)} "
+                     f"| {'; '.join(used) or 'no instalado'} |")
     return lines
+
+
+def _npm_state(doc: DocVersion, latest: str) -> str:
+    """Marca la version documentada que es mas nueva que todo lo publicado en npm."""
+    if doc.version and NPM_VERSION_RE.match(latest) and version_key(latest) < version_key(doc.version):
+        return "documentada no publicada en npm"
+    return "—"
 
 
 def render_versions_md(states: list[RepoState], locked_by_repo: dict[str, dict[str, list[str]]],
                        documented: dict[str, DocVersion], entries: list[ChangelogEntry],
                        npm_latest: dict[str, str], unmapped: list[str] | None = None,
-                       lock_problems: dict[str, list[LockProblem]] | None = None) -> str:
+                       lock_problems: dict[str, list[LockProblem]] | None = None,
+                       npm_line: str = "npm consultado: no", skipped: set[str] | None = None,
+                       unanalyzable: dict[str, str] | None = None) -> str:
     lines = [
         "# Versiones: mi versión vs desplegada vs documentada",
         "",
         "Archivo generado por `_meta/versions.py`; no se edita a mano. Los upstream de Tether son privados:",
         "no se puede ver una release posterior a la integrada en `origin/main` de cada repo.",
+        "Las versiones salen de la ref analizada (`origin/main`), no del checkout local.",
+        "",
+        f"{npm_line}.",
         "",
     ]
-    lines += _repos_table(states) + [""]
+    lines += _repos_table(states, unanalyzable or {}) + [""]
     sections, breaking_lines = _repo_sections(
-        states, locked_by_repo, documented, entries, npm_latest, lock_problems or {})
+        states, locked_by_repo, documented, entries, npm_latest, lock_problems or {}, skipped or set())
     lines += sections
     lines += ["## Cambios breaking entre mi versión y la documentada", ""]
     lines += (breaking_lines or ["Ninguno."]) + [""]
@@ -602,46 +663,137 @@ def render_versions_md(states: list[RepoState], locked_by_repo: dict[str, dict[s
     return "\n".join(lines) + "\n"
 
 
-def render_last_sync(states: list[RepoState], docs_site: dict, analyzed_on: str) -> str:
+def parse_last_sync(text: str) -> dict[str, list[str]]:
+    """Lineas no vacias de cada seccion `## <repo>` de un last-sync.md."""
+    sections: dict[str, list[str]] = {}
+    current: list[str] | None = None
+    for line in text.splitlines():
+        if line.startswith("## "):
+            current = sections.setdefault(line[3:].strip(), [])
+        elif current is not None and line.strip():
+            current.append(line)
+    return sections
+
+
+SYNC_KEYS = ("commit:", "date:", "analyzed_on:")
+
+
+def _kept_sync_lines(previous: list[str]) -> dict[str, str] | None:
+    """`commit`/`date`/`analyzed_on` de la seccion anterior, tal cual; None si falta alguna."""
+    kept = {key: next((line for line in previous if line.startswith(key)), None) for key in SYNC_KEYS}
+    return None if None in kept.values() else kept
+
+
+def render_last_sync(states: list[RepoState], docs_site: dict, analyzed_on: str,
+                     previous: dict[str, list[str]] | None = None, advance: set[str] | None = None,
+                     keep: tuple[str, ...] = ()) -> str:
+    """`advance` None avanza todas las secciones; si no, las demas conservan commit/date/analyzed_on.
+
+    Una seccion no avanzada sin punto anterior se omite (no se inventa un punto de sincronizacion).
+    `keep` son repos no analizables cuya seccion anterior se copia tal cual.
+    """
+    previous = previous or {}
     lines = [
         "# last-sync",
         "",
         "Punto de sincronización de cada fuente. Los upstream de Tether son privados: no se puede ver una",
         "release posterior a la integrada en `origin/main` de cada repo (`deployed_release`).",
     ]
+    sections: dict[str, list[str]] = {}
     for s in states:
-        lines += ["", f"## {s.name}", f"branch: {s.branch}", f"commit: {s.head}", f"date: {s.head_date}"]
-        if s.release:
-            lines += [f"deployed_release: {s.release}", f"release_commit: {s.release_commit}",
-                      f"release_date: {s.release_date}", f"ahead_of_release: {s.ahead_of_release}"]
-        else:
-            lines.append(f"deployed_release: none (origin/{s.branch})")
-        lines += [f"origin_main: {s.origin_head or 'none'}", f"behind_origin: {s.behind_origin if s.behind_origin is not None else 'none'}"]
-        if s.name == "wdk-docs":
-            lines += [f"{k}: {docs_site[k]}" for k in ("site_changelog_top", "repo_changelog_top", "site_matches_repo") if k in docs_site]
-        lines.append(f"analyzed_on: {analyzed_on}")
+        fresh = {"commit:": f"commit: {s.head}", "date:": f"date: {s.head_date}",
+                 "analyzed_on:": f"analyzed_on: {analyzed_on}"}
+        sync = fresh if advance is None or s.name in advance else _kept_sync_lines(previous.get(s.name, []))
+        if sync is None:
+            continue
+        sections[s.name] = _sync_section(s, docs_site, sync)
+    sections.update({name: previous[name] for name in keep if name in previous})
+    for name in sections:
+        lines += ["", f"## {name}", *sections[name]]
     return "\n".join(lines) + "\n"
+
+
+def _sync_section(s: RepoState, docs_site: dict, sync: dict[str, str]) -> list[str]:
+    lines = [f"branch: {s.branch}", sync["commit:"], sync["date:"], f"analyzed_ref: {s.analyzed_ref}"]
+    if s.release:
+        lines += [f"deployed_release: {s.release}", f"release_commit: {s.release_commit}",
+                  f"release_date: {s.release_date}", f"ahead_of_release: {s.ahead_of_release}"]
+    else:
+        lines.append(f"deployed_release: none (origin/{s.branch})")
+    lines += [f"origin_main: {s.origin_head or 'none'}", f"behind_origin: {s.behind_origin if s.behind_origin is not None else 'none'}"]
+    if s.name == "wdk-docs":
+        lines += [f"{k}: {docs_site[k]}" for k in ("site_changelog_top", "repo_changelog_top", "site_matches_repo") if k in docs_site]
+    lines.append(sync["analyzed_on:"])
+    return lines
 
 
 # --------------------------------------------------------------------- IO
 
-def _discover_repos(workspace: Path, vault: Path) -> list[Path]:
-    return [d for d in sorted(workspace.iterdir()) if d.is_dir() and d.name != vault.name and (d / ".git").exists()]
+def _repo_list(vault: Path) -> list[tuple[str, set[str]]] | None:
+    """Entradas de `_meta/repos.txt`: (directorio, marcas). None si el archivo no existe."""
+    path = vault / "_meta" / "repos.txt"
+    if not path.is_file():
+        return None
+    entries = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        words = line.partition("#")[0].split()
+        if words:
+            entries.append((words[0], set(words[1:])))
+    return entries
+
+
+def _discover_repos(workspace: Path, vault: Path) -> tuple[list[Path], set[str]]:
+    """Repos a analizar y los marcados `docs-only`; sin `repos.txt`, todos los repos git del workspace."""
+    listed = _repo_list(vault)
+    if listed is not None:
+        return [workspace / name for name, _ in listed], {name for name, flags in listed if DOCS_ONLY in flags}
+    print("warning: falta _meta/repos.txt; se analizan todos los repos git del workspace", file=sys.stderr)
+    found = [d for d in sorted(workspace.iterdir()) if d.is_dir() and d.name != vault.name and (d / ".git").exists()]
+    return found, set()
 
 
 def _analysis_branch(repo: Path) -> str:
-    if _git_optional(repo, "rev-parse", "--verify", "-q", "main"):
+    if _git_optional(repo, "rev-parse", "--verify", "-q", "origin/main") or \
+            _git_optional(repo, "rev-parse", "--verify", "-q", "main"):
         return "main"
     return _git_optional(repo, "symbolic-ref", "--short", "HEAD") or "main"
 
 
+def _analyze(repos: list[Path]) -> tuple[list[RepoState], dict[str, str]]:
+    """Estado de cada repo; los que git no puede analizar quedan en el segundo dict con su motivo."""
+    states: list[RepoState] = []
+    failed: dict[str, str] = {}
+    for repo in repos:
+        if not (repo / ".git").exists():
+            failed[repo.name] = "no es un repo git del workspace"
+            continue
+        try:
+            states.append(repo_state(repo, _analysis_branch(repo)))
+        except subprocess.CalledProcessError as error:
+            detail = (error.stderr or "").strip().splitlines()
+            failed[repo.name] = detail[0] if detail else f"git terminó con código {error.returncode}"
+    return states, failed
+
+
+def _export_docs(docs: Path, ref: str, dest: Path) -> Path:
+    """`content/docs` tal como esta en `ref` (git archive), sin leer el arbol de trabajo."""
+    raw = subprocess.run(["git", "archive", "--format=tar", ref, "content/docs"],
+                         cwd=docs, capture_output=True, check=True).stdout
+    with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+        archive.extractall(dest, filter="data")
+    return dest
+
+
 def _npm_latest_one(package: str) -> tuple[str, str]:
+    """`latest` de npm, o `no publicado (404)` / `error` para no confundirlos con una version."""
     try:
         result = subprocess.run(["npm", "view", package, "dist-tags.latest"],
-                                capture_output=True, text=True, check=True, timeout=60)
-        return package, result.stdout.strip()
+                                capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.SubprocessError):
-        return package, ""
+        return package, NPM_ERROR
+    if result.returncode != 0:
+        return package, NPM_404 if "E404" in (result.stderr or "") else NPM_ERROR
+    return package, result.stdout.strip()
 
 
 def _fetch_npm_latest(packages: list[str]) -> dict[str, str]:
@@ -654,7 +806,7 @@ def _site_changelog_top() -> str:
         request = urllib.request.Request(SITE_CHANGELOG_URL, headers={"User-Agent": "wdk-vault-versions/1.0"})
         with urllib.request.urlopen(request, timeout=20) as response:
             return changelog_top_date(response.read().decode("utf-8", errors="replace")) or UNKNOWN
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):
         return UNKNOWN
 
 
@@ -667,10 +819,45 @@ def _docs_site(repo_top: str) -> dict:
     return {"site_changelog_top": site_top, "repo_changelog_top": repo_top or UNKNOWN, "site_matches_repo": matches}
 
 
+def _previous_npm(meta: Path) -> dict | None:
+    """Bloque `npm` del versions.json actual, si tiene valores."""
+    try:
+        npm = json.loads((meta / "versions.json").read_text(encoding="utf-8")).get("npm")
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return None
+    ok = isinstance(npm, dict) and isinstance(npm.get("latest"), dict) and isinstance(npm.get("queried_on"), str)
+    return npm if ok else None
+
+
+def _npm_values(query: bool, packages: list[str], meta: Path, today: str) -> tuple[dict, str]:
+    """Valores npm y la linea de encabezado: consultados hoy, los de la ultima consulta, o ninguno."""
+    if query:
+        return {"queried_on": today, "latest": _fetch_npm_latest(packages)}, f"npm consultado: sí ({today})"
+    previous = _previous_npm(meta)
+    if previous:
+        return previous, f"npm consultado: no; valores npm del {previous['queried_on']} (última consulta)"
+    return {"queried_on": None, "latest": {}}, "npm consultado: no"
+
+
+def _write_checkpoint(meta: Path, states: list[RepoState], failed: dict[str, str], changelog: str,
+                      names: list[str], today: str) -> None:
+    path = meta / "last-sync.md"
+    previous = parse_last_sync(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    advance = set(names) if names else None
+    for s in states:
+        if advance is not None and s.name not in advance and s.name not in previous:
+            print(f"warning: {s.name} no tiene sección en last-sync.md y no se nombró en --checkpoint: "
+                  "queda sin punto de sincronización", file=sys.stderr)
+    site = _docs_site(changelog_top_date(changelog))
+    text = render_last_sync(states, site, today, previous, advance, tuple(failed))
+    path.write_text(text, encoding="utf-8")
+
+
 def main(argv: list[str], vault: Path = VAULT) -> int:
     parser = argparse.ArgumentParser(description="Genera _meta/versions.md y versions.json")
     parser.add_argument("--npm", action="store_true", help="consulta dist-tags.latest en npm")
-    parser.add_argument("--checkpoint", action="store_true", help="escribe _meta/last-sync.md")
+    parser.add_argument("--checkpoint", nargs="*", metavar="REPO",
+                        help="escribe _meta/last-sync.md; sin nombres avanza todos los repos, con nombres solo esos")
     args = parser.parse_args(argv)
 
     workspace = vault.parent
@@ -679,9 +866,28 @@ def main(argv: list[str], vault: Path = VAULT) -> int:
         print(f"error: falta {docs}; clona https://github.com/tetherto/wdk-docs.git en el workspace", file=sys.stderr)
         return 2
 
-    repos = _discover_repos(workspace, vault)
-    states = [repo_state(r, _analysis_branch(r)) for r in repos]
-    scans = {r.name: scan_lockfiles(r) for r in repos}
+    repos, docs_only = _discover_repos(workspace, vault)
+    unknown = sorted(set(args.checkpoint or []) - {r.name for r in repos})
+    if unknown:
+        print(f"error: --checkpoint con repos desconocidos: {', '.join(unknown)}", file=sys.stderr)
+        return 2
+    states, failed = _analyze(repos)
+    for name, reason in failed.items():
+        print(f"warning: {name}: no analizable: {reason}", file=sys.stderr)
+    docs_state = next((s for s in states if s.name == docs.name), None)
+    try:
+        docs_ref = docs_state.head if docs_state else repo_state(docs, _analysis_branch(docs)).head
+    except subprocess.CalledProcessError:
+        print(f"error: {docs} no es analizable con git", file=sys.stderr)
+        return 2
+    with tempfile.TemporaryDirectory() as tmp:
+        return _generate(args, vault, _export_docs(docs, docs_ref, Path(tmp)), states, failed, docs_only)
+
+
+def _generate(args: argparse.Namespace, vault: Path, docs: Path, states: list[RepoState],
+              failed: dict[str, str], docs_only: set[str]) -> int:
+    workspace = vault.parent
+    scans = {s.name: scan_lockfiles(workspace / s.name, s.head) for s in states if s.name not in docs_only}
     locked_by_repo = {name: scan[0] for name, scan in scans.items()}
     lock_problems = {name: scan[1] for name, scan in scans.items() if scan[1]}
     changelog = _read_changelog(docs)
@@ -695,27 +901,28 @@ def main(argv: list[str], vault: Path = VAULT) -> int:
     installs = docs_install_packages(docs)
     documented = documented_with_installs(documented_versions(docs, installs), installs)
     catalog = _catalog(documented, entries)
-    npm_latest = _fetch_npm_latest([p for p in catalog if not p.startswith("github:")]) if args.npm else {}
+    today = date.today().isoformat()
+    meta = vault / "_meta"
+    npm, npm_line = _npm_values(args.npm, [p for p in catalog if not p.startswith("github:")], meta, today)
 
     packages = set(catalog) | set(documented) | {e.package for e in entries}
     for locked in locked_by_repo.values():
         packages.update(locked)
-    today = date.today().isoformat()
-    meta = vault / "_meta"
     (meta / "versions.md").write_text(
-        render_versions_md(states, locked_by_repo, documented, entries, npm_latest, unmapped, lock_problems),
+        render_versions_md(states, locked_by_repo, documented, entries, npm["latest"], unmapped, lock_problems,
+                           npm_line, docs_only, failed),
         encoding="utf-8")
     payload = {
         "generated": today,
-        "repos": {s.name: {**asdict(s), "locked": locked_by_repo[s.name],
+        "npm": npm,
+        "repos": {s.name: {**asdict(s), "locked": locked_by_repo.get(s.name, {}),
                          "lockfile_problems": [f"{f} ({r})" for f, r in lock_problems.get(s.name, [])]}
                   for s in states},
         "packages": sorted(packages),
     }
     (meta / "versions.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    if args.checkpoint:
-        site = _docs_site(changelog_top_date(changelog))
-        (meta / "last-sync.md").write_text(render_last_sync(states, site, today), encoding="utf-8")
+    if args.checkpoint is not None:
+        _write_checkpoint(meta, states, failed, changelog, args.checkpoint, today)
     return 0
 
 
