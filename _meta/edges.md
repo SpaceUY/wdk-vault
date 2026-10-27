@@ -148,6 +148,7 @@ copy lives in the origin note, this is only the reverse lookup.
 - wdk-wallet-evm — opens a question about → wdk-failover-provider because acepta una lista ordenada de providers como failover, pero la doc no dice si lo implementa con ese paquete
 
 ## wdk-indexer-processor-wrk
+- Capability del handshake ork debe coincidir — constrains → wdk-indexer-processor-wrk because arranca su servidor RPC con `topicConf.capability`, que su README incluye en la configuración común
 - Stream de transferencias agrupadas en Redis — requires → wdk-indexer-processor-wrk because es el enrutador que lo lleva al stream de cada shard
 
 ## wdk-indexer-wrk-base
