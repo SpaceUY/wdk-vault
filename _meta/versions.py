@@ -763,19 +763,47 @@ def _cambios_header(previous: dict, current: dict) -> list[str]:
     return lines + [f"- Commit de la doc: {NO_CHANGES}" if same else f"- La doc avanzó: `{old[:7]}..{now['commit'][:7]}`"]
 
 
-def _cambios_versions(previous: dict, current: dict, entries: list[ChangelogEntry]) -> list[str]:
+def new_changelog_entries(now: list[ChangelogEntry], then: list[ChangelogEntry]) -> list[ChangelogEntry]:
+    """Entradas del changelog actual cuyo (paquete, version) no estaba en el changelog indexado."""
+    seen = {(e.package, e.version) for e in then}
+    return [e for e in now if (e.package, e.version) not in seen]
+
+
+def _fresh_by_package(new_entries: list[ChangelogEntry], packages: dict) -> dict[str, list[ChangelogEntry]]:
+    """Entradas nuevas por fila del catalogo; un id `github:` va a la fila que lo absorbio (`… via github:x/y`)."""
+    alias = {v["source"].rpartition(" via ")[2]: p for p, v in packages.items() if " via " in v["source"]}
+    fresh: dict[str, list[ChangelogEntry]] = {}
+    for entry in new_entries:
+        fresh.setdefault(alias.get(entry.package, entry.package), []).append(entry)
+    return fresh
+
+
+def _cambios_versions(previous: dict, current: dict, entries: list[ChangelogEntry],
+                      new_entries: list[ChangelogEntry] | None) -> list[str]:
+    """Filas con version documentada distinta o con entradas nuevas en el changelog.
+
+    `new_entries` None: no se pudo leer el changelog indexado; se cae al rango de versiones del changelog actual.
+    """
     before, now = previous.get("packages") or {}, current["packages"]
-    changed = [p for p in sorted(set(before) & set(now)) if before[p].get("documented", "") != now[p]["documented"]]
+    fresh = _fresh_by_package(new_entries or [], now)
+    changed = sorted(p for p in set(before) & set(now)
+                     if before[p].get("documented", "") != now[p]["documented"] or p in fresh)
     if not changed:
         return []
-    lines = ["| paquete | indexada | actual | npm indexado → npm actual | cambios del changelog en el rango |",
-             "|---|---|---|---|---|"]
+    lines = [] if new_entries is not None else [
+        "changelog indexado no disponible: las entradas salen del rango de versiones del changelog actual.", ""]
+    lines += ["| paquete | indexada | actual | npm indexado → npm actual | entradas nuevas del changelog |",
+              "|---|---|---|---|---|"]
     details: list[str] = []
     for package in changed:
         old, new = before[package].get("documented", ""), now[package]["documented"]
-        changes = _range_changes(entries, package, now[package]["source"], old, new)
+        if new_entries is None:
+            changes = _range_changes(entries, package, now[package]["source"], old, new)
+        else:
+            changes = fresh.get(package, [])
+        actual = (new or "—") if old != new else f"sin cambio ({now[package]['source'].partition(':')[0]})"
         npm = f"{before[package].get('npm') or '—'} → {now[package]['npm'] or '—'}"
-        lines.append(f"| {package} | {old or '—'} | {new or '—'} | {npm} | {_range_cell(changes)} |")
+        lines.append(f"| {package} | {old or '—'} | {actual} | {npm} | {_range_cell(changes)} |")
         if changes:
             details += ["", f"`{package}`:"] + [_entry_line(e) for e in changes]
     return lines + details
@@ -796,13 +824,16 @@ def _cambios_pages(pages: list[PageChange] | None, cited: dict[str, list[str]], 
     for status, path, new_path in pages:
         word = PAGE_STATUS.get(status, status)
         old_notes = cited.get(f"{docs_name}/{path}", [])
-        if new_path is None:
+        if status == "D":
+            label, notes, stale = f"`{path}` ({word})", [], old_notes
+        elif new_path is None:
             label, notes, stale = f"`{path}` ({word})", old_notes, []
         else:
             label, notes, stale = f"`{path}` → `{new_path}` ({word})", cited.get(f"{docs_name}/{new_path}", []), old_notes
         parts = [_links(notes)] if notes else []
         if stale:
-            parts.append(f"citan la ruta vieja, corregir su `source:`: {_links(stale)}")
+            parts.append(f"citan una ruta que ya no está en origin/main; check.py falla hasta corregir su "
+                         f"`source:`: {_links(stale)}")
         if parts:
             reviewed.append(f"- {label}: {'; '.join(parts)}")
         else:
@@ -839,7 +870,7 @@ def _cambios_org(before: dict, now: dict) -> list[str]:
     both = sorted(set(now) & set(before))
     groups = {
         "Nuevos": [f"- `{r}`" for r in sorted(set(now) - set(before))],
-        "Con push más reciente": [f"- `{r}`: {before[r].get('pushed_at', '')} → {now[r]['pushed_at']}"
+        "Con push más reciente": [f"- `{r}`: {before[r].get('pushed_at', '')[:10]} → {now[r]['pushed_at'][:10]}"
                                   for r in both if now[r]["pushed_at"] > before[r].get("pushed_at", "")],
         "Archivados": [f"- `{r}`" for r in both if now[r]["archived"] and not before[r].get("archived")],
         "Desaparecidos": [f"- `{r}`" for r in sorted(set(before) - set(now))],
@@ -863,11 +894,15 @@ CHECKLIST = [
 
 def render_cambios(previous: dict, current: dict, entries: list[ChangelogEntry], pages: list[PageChange] | None,
                    cited: dict[str, list[str]], docs_name: str = "wdk-docs",
-                   org_missing: str = "no consultado (correr con --org)") -> str:
-    """Informe de lo que cambio desde la foto `previous`. `current["org_repos"]` None: la org no se consulto."""
+                   org_missing: str = "no consultado (correr con --org)",
+                   new_entries: list[ChangelogEntry] | None = None) -> str:
+    """Informe de lo que cambio desde la foto `previous`. `current["org_repos"]` None: la org no se consulto.
+
+    `new_entries`: entradas del changelog que no estaban en el indexado; None si no se pudo leer.
+    """
     old, new = (previous.get("wdk_docs") or {}).get("commit", ""), current["wdk_docs"]["commit"]
     bodies = {
-        "1. Paquetes con versión documentada distinta": _cambios_versions(previous, current, entries),
+        "1. Paquetes con versión documentada distinta": _cambios_versions(previous, current, entries, new_entries),
         "2. Páginas de la doc que cambiaron": _cambios_pages(pages, cited, docs_name, old, new),
         "3. Paquetes nuevos / desaparecidos del catálogo": _cambios_catalog(previous, current),
         "4. npm": _cambios_npm(previous, current),
@@ -910,6 +945,16 @@ def docs_page_changes(repo: Path, old: str, new: str) -> list[PageChange] | None
         path = next(fields)
         changes.append((code[0], path, next(fields) if code[0] in "RC" else None))
     return changes
+
+
+def changelog_at(repo: Path, commit: str) -> str | None:
+    """Changelog de la doc en `commit`; None si el commit o el archivo no estan."""
+    if not SHA_RE.match(commit):
+        return None
+    try:
+        return _show(repo, commit, CHANGELOG_REL)
+    except (subprocess.CalledProcessError, UnicodeDecodeError):
+        return None
 
 
 def _frontmatter_sources(text: str) -> list[str]:
@@ -1034,7 +1079,7 @@ def _fetch_org_repos() -> dict[str, dict] | None:
             for item in items:
                 name = item.get("name") if isinstance(item, dict) else None
                 if isinstance(name, str) and ORG_REPO_RE.search(name):
-                    found[name] = {"pushed_at": (item.get("pushed_at") or "")[:10], "archived": bool(item.get("archived"))}
+                    found[name] = {"pushed_at": item.get("pushed_at") or "", "archived": bool(item.get("archived"))}
     except (OSError, ValueError, http.client.HTTPException) as error:
         print(f"warning: no se pudo consultar la org tetherto en GitHub: {error}", file=sys.stderr)
         return None
@@ -1191,10 +1236,13 @@ def _generate(args: argparse.Namespace, vault: Path, docs: Path, states: list[Re
                                 previous.get("org_repos", {}) if org is None else org)
     if args.cambios:
         old = (previous.get("wdk_docs") or {}).get("commit", "")
-        pages = docs_page_changes(workspace / docs_state.name, old, docs_state.head)
+        docs_repo = workspace / docs_state.name
+        pages = docs_page_changes(docs_repo, old, docs_state.head)
+        indexed_changelog = changelog_at(docs_repo, old)
+        fresh = None if indexed_changelog is None else new_changelog_entries(entries, changelog_entries(indexed_changelog))
         missing = "no se pudo consultar (error de red; ver stderr)" if args.org else "no consultado (correr con --org)"
         report = render_cambios(previous, {**snapshot, "org_repos": org}, entries, pages, note_sources(vault),
-                                docs_state.name, missing)
+                                docs_state.name, missing, fresh)
         (meta / "cambios.md").write_text(report, encoding="utf-8")
     if args.checkpoint is not None:
         _write_checkpoint(meta, states, failed, changelog, args.checkpoint, today)

@@ -664,9 +664,9 @@ class OrgFetchTest(unittest.TestCase):
         with mock.patch.object(versions.urllib.request, "urlopen", side_effect=pages) as opened:
             found = versions._fetch_org_repos()
         self.assertEqual(found, {
-            "Pear-Wrk-Wdk": {"pushed_at": "2026-09-01", "archived": False},
-            "tether-wrk-base": {"pushed_at": "2025-01-02", "archived": True},
-            "wdk-wallet-evm": {"pushed_at": "2026-10-20", "archived": False},
+            "Pear-Wrk-Wdk": {"pushed_at": "2026-09-01T00:00:00Z", "archived": False},
+            "tether-wrk-base": {"pushed_at": "2025-01-02T00:00:00Z", "archived": True},
+            "wdk-wallet-evm": {"pushed_at": "2026-10-20T10:00:00Z", "archived": False},
         })
         requests = [c.args[0] for c in opened.call_args_list]
         self.assertEqual([r.full_url for r in requests],
@@ -853,14 +853,17 @@ class MainTest(unittest.TestCase):
     def test_cambios_reports_documented_version_change_with_changelog_range(self) -> None:
         docs = self.bootstrap(["--npm"], {"@tetherto/wdk-wallet-evm": "1.0.0-beta.20"})
         evm = "https://github.com/tetherto/wdk-wallet-evm/releases/tag/v"
+        indexed = f"### October 10, 2026\n- **wdk-wallet-evm** ([v1.0.0-beta.20]({evm}1.0.0-beta.20)): Old entry.\n\n"
+        self.commit_docs(docs, {"content/docs/overview/changelog.mdx": indexed + CHANGELOG})
+        self.assertEqual(self.run_main(["--npm", "--checkpoint"], {"@tetherto/wdk-wallet-evm": "1.0.0-beta.20"})[0], 0)
         self.commit_docs(docs, {
             "content/docs/sdk/wallet-modules/wallet-evm/index.mdx":
                 "These pages reflect `@tetherto/wdk-wallet-evm@1.0.0-beta.22`.\n",
             "content/docs/overview/changelog.mdx":
                 "### October 20, 2026\n"
                 f"- **wdk-wallet-evm** ([v1.0.0-beta.22]({evm}1.0.0-beta.22)): Add fee caps.\n"
-                f"- **wdk-wallet-evm** ([v1.0.0-beta.21]({evm}1.0.0-beta.21)): [Breaking] Rename sendTx.\n"
-                f"- **wdk-wallet-evm** ([v1.0.0-beta.20]({evm}1.0.0-beta.20)): Old entry.\n\n" + CHANGELOG,
+                f"- **wdk-wallet-evm** ([v1.0.0-beta.21]({evm}1.0.0-beta.21)): [Breaking] Rename sendTx.\n\n"
+                + indexed + CHANGELOG,
         })
         self.assertEqual(self.run_main(["--cambios", "--npm"], {"@tetherto/wdk-wallet-evm": "1.0.0-beta.22"})[0], 0)
         section = self.cambios_section(1)
@@ -873,6 +876,34 @@ class MainTest(unittest.TestCase):
         self.assertNotIn("sin cambios", section)
         self.assertNotIn("sin cambios", self.cambios_section(6))
 
+    def test_cambios_reports_new_changelog_entries_while_callout_stays(self) -> None:
+        docs = self.bootstrap()
+        evm = "https://github.com/tetherto/wdk-wallet-evm/releases/tag/v"
+        self.commit_docs(docs, {"content/docs/overview/changelog.mdx":
+                                "### October 22, 2026\n"
+                                f"- **wdk-wallet-evm** ([v1.0.0-beta.21]({evm}1.0.0-beta.21)): [Breaking] Drop legacy fees.\n\n"
+                                + CHANGELOG})
+        self.assertEqual(self.run_main(["--cambios"])[0], 0)
+        section = self.cambios_section(1)
+        row = [line for line in section.splitlines() if line.startswith("| @tetherto/wdk-wallet-evm |")][0]
+        self.assertIn("| 1.0.0-beta.20 | sin cambio (callout) |", row)
+        self.assertIn("1, 1 breaking: 2026-10-22", row)
+        self.assertIn("- 2026-10-22 · 1.0.0-beta.21 [Breaking]: Drop legacy fees.", section)
+        self.assertNotIn("@tetherto/wdk-wallet |", section)
+
+    def test_cambios_unreachable_indexed_commit_falls_back_to_version_range(self) -> None:
+        self.bootstrap()
+        snap = self.snapshot()
+        snap["wdk_docs"]["commit"] = "deadbeef" * 5
+        snap["packages"]["@tetherto/wdk-wallet"]["documented"] = "1.0.0-beta.21"
+        (self.vault / "_meta" / "indexado.json").write_text(json.dumps(snap), encoding="utf-8")
+        self.assertEqual(self.run_main(["--cambios"])[0], 0)
+        self.assertIn("no se pudo comparar", self.cambios_section(2))
+        section = self.cambios_section(1)
+        self.assertIn("changelog indexado no disponible", section)
+        self.assertIn("- 2026-10-06 · 1.0.0-beta.22 [Breaking]:", section)
+        self.assertNotIn("@tetherto/wdk-wallet-evm", section)
+
     def test_cambios_lists_changed_pages_and_the_notes_citing_them(self) -> None:
         docs = self.bootstrap()
         self.commit_docs(docs, {"content/docs/a.mdx": "alpha\n", "content/docs/old.mdx": "stable page body\n" * 5,
@@ -880,6 +911,7 @@ class MainTest(unittest.TestCase):
         self.assertEqual(self.run_main(["--checkpoint"])[0], 0)
         self.write_note("concepts/Nota A.md", "wdk-docs/content/docs/a.mdx")
         self.write_note("concepts/Nota Vieja.md", "wdk-docs/content/docs/old.mdx")
+        self.write_note("concepts/Nota Borrada.md", "wdk-docs/content/docs/lonely.mdx")
         git(docs, "mv", "content/docs/old.mdx", "content/docs/new.mdx")
         git(docs, "rm", "-q", "content/docs/lonely.mdx")
         self.commit_docs(docs, {"content/docs/a.mdx": "beta\n", "content/docs/added.mdx": "new\n"})
@@ -890,9 +922,11 @@ class MainTest(unittest.TestCase):
         renamed = [line for line in cited.splitlines() if "content/docs/new.mdx" in line][0]
         self.assertIn("content/docs/old.mdx", renamed)
         self.assertIn("[[Nota Vieja]]", renamed)
-        self.assertIn("ruta vieja", renamed)
+        self.assertIn("ya no está en origin/main; check.py falla", renamed)
+        deleted = [line for line in cited.splitlines() if "content/docs/lonely.mdx" in line][0]
+        self.assertIn("[[Nota Borrada]]", deleted)
+        self.assertIn("ya no está en origin/main; check.py falla", deleted)
         self.assertIn("content/docs/added.mdx", uncited)
-        self.assertIn("content/docs/lonely.mdx", uncited)
         self.assertNotIn("[[", uncited)
         for number in (0, 1, 3, 4, 5):
             self.assertNotIn("[[", self.cambios_section(number))
@@ -920,21 +954,21 @@ class MainTest(unittest.TestCase):
         self.assertIn("sin cambios", self.cambios_section(1))
 
     def test_cambios_reports_org_repos(self) -> None:
-        org = {"wdk-a": {"pushed_at": "2026-10-01", "archived": False},
-               "wdk-b": {"pushed_at": "2026-10-01", "archived": False},
-               "wdk-gone": {"pushed_at": "2026-01-01", "archived": False}}
+        org = {"wdk-a": {"pushed_at": "2026-10-20T10:00:00Z", "archived": False},
+               "wdk-b": {"pushed_at": "2026-10-01T00:00:00Z", "archived": False},
+               "wdk-gone": {"pushed_at": "2026-01-01T00:00:00Z", "archived": False}}
         self.bootstrap(["--org"], org=org)
         self.assertEqual(self.run_main(["--cambios"])[0], 0)
         self.assertIn("no consultado (correr con --org)", self.cambios_section(5))
-        now = {"wdk-a": {"pushed_at": "2026-10-20", "archived": False},
-               "wdk-b": {"pushed_at": "2026-10-01", "archived": True},
-               "wdk-new": {"pushed_at": "2026-10-25", "archived": False}}
+        now = {"wdk-a": {"pushed_at": "2026-10-20T18:30:00Z", "archived": False},
+               "wdk-b": {"pushed_at": "2026-10-01T00:00:00Z", "archived": True},
+               "wdk-new": {"pushed_at": "2026-10-25T00:00:00Z", "archived": False}}
         self.assertEqual(self.run_main(["--cambios", "--org"], org=now)[0], 0)
         section = self.cambios_section(5)
         parts = {title: section.split(title, 1)[1].split("\n\n", 1)[0]
                  for title in ("Nuevos", "Con push más reciente", "Archivados", "Desaparecidos")}
         self.assertIn("wdk-new", parts["Nuevos"])
-        self.assertIn("`wdk-a`: 2026-10-01 → 2026-10-20", parts["Con push más reciente"])
+        self.assertIn("`wdk-a`: 2026-10-20 → 2026-10-20", parts["Con push más reciente"])
         self.assertIn("wdk-b", parts["Archivados"])
         self.assertIn("wdk-gone", parts["Desaparecidos"])
         self.assertNotIn("wdk-b", parts["Con push más reciente"])
