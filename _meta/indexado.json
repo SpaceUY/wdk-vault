@@ -1,0 +1,522 @@
+{
+  "indexed_on": "2026-10-27",
+  "wdk_docs": {
+    "ref": "origin/main",
+    "commit": "8d2dfbfd5c8ace59c53297eb9bc008a66be0b494",
+    "date": "2026-10-19"
+  },
+  "packages": {
+    "@0x/wdk-protocol-swidge-0x": {
+      "documented": "0.1.0",
+      "source": "changelog:2026-08-12",
+      "npm": "0.1.0"
+    },
+    "@base58-io/wdk-wallet-cosmos": {
+      "documented": "1.0.0-beta.4",
+      "source": "mention:content/docs/sdk/community-modules/wdk-wallet-cosmos/api-reference.mdx",
+      "npm": "1.0.0-beta.6"
+    },
+    "@bermuda/wdk-wallet-evm-bermuda": {
+      "documented": "",
+      "source": "install:content/docs/sdk/wallet-modules/wallet-evm-bermuda/api-reference.mdx",
+      "npm": "no publicado (404)"
+    },
+    "@butternetwork/wdk-protocol-swidge-butter": {
+      "documented": "0.2.0",
+      "source": "changelog:2026-09-17",
+      "npm": "0.2.0"
+    },
+    "@candidelabs/wdk-protocol-sda-candide": {
+      "documented": "1.0.0-beta.1",
+      "source": "changelog:2026-10-05",
+      "npm": "1.0.0-beta.1"
+    },
+    "@hinkal/wdk-wallet-evm-hinkal": {
+      "documented": "0.0.7",
+      "source": "changelog:2026-09-10",
+      "npm": "0.0.7"
+    },
+    "@lifi/wdk-protocol-swidge-lifi": {
+      "documented": "0.5.1",
+      "source": "changelog:2026-07-16",
+      "npm": "0.5.4"
+    },
+    "@moonpay/wdk-protocol-swidge-moonpay-trade": {
+      "documented": "0.2.0",
+      "source": "changelog:2026-08-13",
+      "npm": "0.2.0"
+    },
+    "@morpho-org/wdk-protocol-lending-morpho-evm": {
+      "documented": "1.0.5",
+      "source": "changelog:2026-07-23",
+      "npm": "3.0.0"
+    },
+    "@rhino.fi/wdk-protocol-sda-rhinofi": {
+      "documented": "1.2.0",
+      "source": "changelog:2026-10-14",
+      "npm": "1.2.0"
+    },
+    "@rhino.fi/wdk-protocol-swidge-rhinofi": {
+      "documented": "1.0.0-beta.2",
+      "source": "changelog:2026-07-07",
+      "npm": "1.4.0"
+    },
+    "@semanticio/wdk-wallet-evm-x402-facilitator": {
+      "documented": "1.0.0-beta.2",
+      "source": "mention:content/docs/ai/x402.mdx",
+      "npm": "1.0.0-beta.2"
+    },
+    "@symbiosis-finance/wdk-protocol-swidge-symbiosis": {
+      "documented": "1.3.0",
+      "source": "changelog:2026-08-01 via github:symbiosis-finance/wdk-protocol-swidge-symbiosis",
+      "npm": "1.3.0"
+    },
+    "@tetherto/create-wdk-module": {
+      "documented": "1.0.0-beta.3",
+      "source": "changelog:2026-07-30",
+      "npm": "1.0.0-beta.4"
+    },
+    "@tetherto/pear-wrk-wdk": {
+      "documented": "1.0.0-beta.16",
+      "source": "callout:content/docs/tools/pear-wrk-wdk/index.mdx",
+      "npm": "1.0.0-beta.17"
+    },
+    "@tetherto/wdk": {
+      "documented": "1.0.0-beta.18",
+      "source": "callout:content/docs/sdk/core-module/index.mdx",
+      "npm": "1.0.0-beta.22"
+    },
+    "@tetherto/wdk-asset-registry": {
+      "documented": "1.0.0-beta.4",
+      "source": "callout:content/docs/tools/asset-registry/index.mdx",
+      "npm": "1.0.0-beta.5"
+    },
+    "@tetherto/wdk-backup-cloud": {
+      "documented": "1.0.0-beta.1",
+      "source": "changelog:2026-08-18",
+      "npm": "1.0.0-beta.2"
+    },
+    "@tetherto/wdk-backup-cloud-react-native": {
+      "documented": "",
+      "source": "install:content/docs/tools/backup-cloud/guides/migrate-from-react-native.mdx",
+      "npm": "1.0.0-beta.2"
+    },
+    "@tetherto/wdk-cli": {
+      "documented": "1.0.0-beta.6",
+      "source": "callout:content/docs/cli/index.mdx",
+      "npm": "1.0.0-beta.8"
+    },
+    "@tetherto/wdk-core": {
+      "documented": "1.0.0-beta.5",
+      "source": "changelog:2025-12-17",
+      "npm": "no publicado (404)"
+    },
+    "@tetherto/wdk-core-react-native": {
+      "documented": "1.0.0-beta.6",
+      "source": "changelog:2026-03-24",
+      "npm": "no publicado (404)"
+    },
+    "@tetherto/wdk-failover-provider": {
+      "documented": "1.0.0-beta.3",
+      "source": "changelog:2026-07-22",
+      "npm": "1.0.0-beta.4"
+    },
+    "@tetherto/wdk-indexer-http": {
+      "documented": "1.0.1",
+      "source": "changelog:2026-10-07",
+      "npm": "1.0.3"
+    },
+    "@tetherto/wdk-mcp-toolkit": {
+      "documented": "1.0.0-beta.1",
+      "source": "callout-beta:content/docs/ai/mcp-toolkit/index.mdx",
+      "npm": "0.0.0"
+    },
+    "@tetherto/wdk-p2p-address-book": {
+      "documented": "1.0.0-beta.3",
+      "source": "changelog:2026-08-10",
+      "npm": "1.0.0-beta.3"
+    },
+    "@tetherto/wdk-pricing-bitfinex-http": {
+      "documented": "1.0.0-beta.6",
+      "source": "changelog:2026-10-05",
+      "npm": "1.0.0-beta.7"
+    },
+    "@tetherto/wdk-pricing-coingecko-http": {
+      "documented": "1.0.0-beta.2",
+      "source": "changelog:2026-08-12",
+      "npm": "1.0.0-beta.3"
+    },
+    "@tetherto/wdk-pricing-provider": {
+      "documented": "1.0.0-beta.7",
+      "source": "changelog:2026-10-05",
+      "npm": "1.0.0-beta.8"
+    },
+    "@tetherto/wdk-protocol-bridge-usdt0-evm": {
+      "documented": "1.0.0-beta.10",
+      "source": "callout:content/docs/sdk/bridge-modules/bridge-usdt0-evm/index.mdx",
+      "npm": "1.0.0-beta.12"
+    },
+    "@tetherto/wdk-protocol-fiat-moonpay": {
+      "documented": "1.0.0-beta.3",
+      "source": "changelog:2026-07-22",
+      "npm": "1.0.0-beta.6"
+    },
+    "@tetherto/wdk-protocol-lending-aave-evm": {
+      "documented": "1.0.0-beta.7",
+      "source": "changelog:2026-09-08",
+      "npm": "1.0.0-beta.8"
+    },
+    "@tetherto/wdk-protocol-swap-velora-evm": {
+      "documented": "1.0.0-beta.9",
+      "source": "changelog:2026-09-24",
+      "npm": "1.0.0-beta.11"
+    },
+    "@tetherto/wdk-react-native-core": {
+      "documented": "1.0.0-beta.21",
+      "source": "callout:content/docs/tools/react-native-core/index.mdx",
+      "npm": "1.0.0-beta.22"
+    },
+    "@tetherto/wdk-react-native-secure-storage": {
+      "documented": "1.0.0-beta.5",
+      "source": "changelog:2026-07-22",
+      "npm": "1.0.0-beta.5"
+    },
+    "@tetherto/wdk-secret-manager": {
+      "documented": "",
+      "source": "install:content/docs/tools/secret-manager/api-reference.mdx",
+      "npm": "1.0.0-beta.3"
+    },
+    "@tetherto/wdk-uikit-react-native": {
+      "documented": "",
+      "source": "install:content/docs/ui-kits/react-native-ui-kit/api-reference.mdx",
+      "npm": "1.0.0-beta.2"
+    },
+    "@tetherto/wdk-utils": {
+      "documented": "1.0.0-beta.13",
+      "source": "callout:content/docs/tools/wdk-utils/index.mdx",
+      "npm": "1.0.0-beta.15"
+    },
+    "@tetherto/wdk-wallet": {
+      "documented": "1.0.0-beta.22",
+      "source": "changelog:2026-10-05",
+      "npm": "1.0.0-beta.25"
+    },
+    "@tetherto/wdk-wallet-aptos": {
+      "documented": "1.0.0-beta.3",
+      "source": "changelog:2026-09-30",
+      "npm": "1.0.0-beta.5"
+    },
+    "@tetherto/wdk-wallet-btc": {
+      "documented": "1.0.0-beta.17",
+      "source": "callout:content/docs/sdk/wallet-modules/wallet-btc/index.mdx",
+      "npm": "1.0.0-beta.17"
+    },
+    "@tetherto/wdk-wallet-evm": {
+      "documented": "1.0.0-beta.20",
+      "source": "callout:content/docs/sdk/wallet-modules/wallet-evm/index.mdx",
+      "npm": "1.0.0-beta.24"
+    },
+    "@tetherto/wdk-wallet-evm-7702-gasless": {
+      "documented": "1.0.0-beta.7",
+      "source": "callout:content/docs/sdk/wallet-modules/wallet-evm-7702-gasless/index.mdx",
+      "npm": "1.0.0-beta.11"
+    },
+    "@tetherto/wdk-wallet-evm-erc-4337": {
+      "documented": "1.0.0-beta.21",
+      "source": "changelog:2026-09-30",
+      "npm": "1.0.0-beta.23"
+    },
+    "@tetherto/wdk-wallet-multisig-safe": {
+      "documented": "1.0.0-beta.1",
+      "source": "changelog:2026-09-24",
+      "npm": "1.0.0-beta.3"
+    },
+    "@tetherto/wdk-wallet-multisig-squads": {
+      "documented": "1.0.0-beta.2",
+      "source": "changelog:2026-09-30",
+      "npm": "1.0.0-beta.4"
+    },
+    "@tetherto/wdk-wallet-solana": {
+      "documented": "1.0.0-beta.16",
+      "source": "callout:content/docs/sdk/wallet-modules/wallet-solana/index.mdx",
+      "npm": "1.0.0-beta.20"
+    },
+    "@tetherto/wdk-wallet-solana-gasless": {
+      "documented": "1.0.0-beta.6",
+      "source": "changelog:2026-09-30",
+      "npm": "1.0.0-beta.8"
+    },
+    "@tetherto/wdk-wallet-spark": {
+      "documented": "1.0.0-beta.28",
+      "source": "callout:content/docs/sdk/wallet-modules/wallet-spark/index.mdx",
+      "npm": "1.0.0-beta.30"
+    },
+    "@tetherto/wdk-wallet-ton": {
+      "documented": "1.0.0-beta.15",
+      "source": "callout:content/docs/sdk/wallet-modules/wallet-ton/index.mdx",
+      "npm": "1.0.0-beta.17"
+    },
+    "@tetherto/wdk-wallet-ton-gasless": {
+      "documented": "1.0.0-beta.13",
+      "source": "callout:content/docs/sdk/wallet-modules/wallet-ton-gasless/index.mdx",
+      "npm": "1.0.0-beta.14"
+    },
+    "@tetherto/wdk-wallet-tron": {
+      "documented": "1.0.0-beta.15",
+      "source": "callout:content/docs/sdk/wallet-modules/wallet-tron/index.mdx",
+      "npm": "1.0.0-beta.16"
+    },
+    "@tetherto/wdk-wallet-tron-gasfree": {
+      "documented": "1.0.0-beta.10",
+      "source": "callout:content/docs/sdk/wallet-modules/wallet-tron-gasfree/index.mdx",
+      "npm": "1.0.0-beta.12"
+    },
+    "@tetherto/wdk-worklet-bundler": {
+      "documented": "1.0.0-beta.14",
+      "source": "callout:content/docs/tools/worklet-bundler/index.mdx",
+      "npm": "1.0.0-beta.16"
+    },
+    "@transak/wdk-protocol-fiat-transak": {
+      "documented": "",
+      "source": "install:content/docs/sdk/fiat-modules/fiat-transak/api-reference.mdx",
+      "npm": "1.0.2"
+    },
+    "@utexo/wdk-rgb-lightning": {
+      "documented": "0.1.0-beta.15",
+      "source": "changelog:2026-07-29 via github:UTEXO-Protocol/wdk-rgb-lightning",
+      "npm": "0.2.0-beta.5"
+    },
+    "@utexo/wdk-wallet-rgb": {
+      "documented": "2.0.3",
+      "source": "mention:content/docs/sdk/community-modules/wdk-wallet-rgb/api-reference.mdx",
+      "npm": "2.0.3"
+    },
+    "wdk-protocol-swidge-orchestra": {
+      "documented": "",
+      "source": "install:content/docs/sdk/swidge-modules/swidge-orchestra/configuration.mdx",
+      "npm": "0.2.0"
+    }
+  },
+  "org_repos": {
+    "create-wdk-module": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "pear-wrk-wdk": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "tether-wrk-base": {
+      "pushed_at": "2026-09-16",
+      "archived": false
+    },
+    "tether-wrk-ork-base": {
+      "pushed_at": "2026-08-27",
+      "archived": false
+    },
+    "wdk": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-agent-skills": {
+      "pushed_at": "2026-09-10",
+      "archived": false
+    },
+    "wdk-asset-registry": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-backup-cloud": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-backup-cloud-react-native": {
+      "pushed_at": "2026-10-04",
+      "archived": true
+    },
+    "wdk-backup-remote": {
+      "pushed_at": "2026-10-15",
+      "archived": true
+    },
+    "wdk-cli": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-core-kotlin": {
+      "pushed_at": "2026-10-12",
+      "archived": false
+    },
+    "wdk-core-swift": {
+      "pushed_at": "2026-10-21",
+      "archived": false
+    },
+    "wdk-docs": {
+      "pushed_at": "2026-10-27",
+      "archived": false
+    },
+    "wdk-doctor-app": {
+      "pushed_at": "2026-08-24",
+      "archived": false
+    },
+    "wdk-examples": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-failover-provider": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-indexer-http": {
+      "pushed_at": "2026-10-21",
+      "archived": false
+    },
+    "wdk-mcp-toolkit": {
+      "pushed_at": "2026-10-27",
+      "archived": false
+    },
+    "wdk-p2p-address-book": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-policies": {
+      "pushed_at": "2026-10-21",
+      "archived": false
+    },
+    "wdk-pricing-bitfinex-http": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-pricing-coingecko-http": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-pricing-provider": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-protocol-bridge-usdt0-evm": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-protocol-bridge-usdt0-solana": {
+      "pushed_at": "2026-10-21",
+      "archived": false
+    },
+    "wdk-protocol-fiat-moonpay": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-protocol-lending-aave-evm": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-protocol-swap-velora-evm": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-react-native-core": {
+      "pushed_at": "2026-10-23",
+      "archived": false
+    },
+    "wdk-react-native-secure-storage": {
+      "pushed_at": "2026-09-21",
+      "archived": true
+    },
+    "wdk-safe-core-sdk": {
+      "pushed_at": "2026-07-02",
+      "archived": true
+    },
+    "wdk-secret-manager": {
+      "pushed_at": "2026-09-30",
+      "archived": true
+    },
+    "wdk-signer-local": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-starter-kotlin": {
+      "pushed_at": "2026-09-30",
+      "archived": false
+    },
+    "wdk-starter-react-native": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-starter-swift": {
+      "pushed_at": "2026-09-30",
+      "archived": false
+    },
+    "wdk-uikit-react-native": {
+      "pushed_at": "2026-10-10",
+      "archived": true
+    },
+    "wdk-utils": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-aptos": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-btc": {
+      "pushed_at": "2026-10-23",
+      "archived": false
+    },
+    "wdk-wallet-evm": {
+      "pushed_at": "2026-10-23",
+      "archived": false
+    },
+    "wdk-wallet-evm-7702-gasless": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-evm-erc-4337": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-multisig-safe": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-multisig-squads": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-solana": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-solana-gasless": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-spark": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-ton": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-ton-gasless": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-tron": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-wallet-tron-gasfree": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    },
+    "wdk-worklet-bundler": {
+      "pushed_at": "2026-10-22",
+      "archived": false
+    }
+  }
+}
