@@ -33,6 +33,8 @@ PNPM_KEY_RE = re.compile(r"^  '?(@tetherto/[^@'\s]+)@(\d[^'(\s:]*)")
 INSTALL_RE = re.compile(r"\b(?:npm\s+(?:install|i)|pnpm\s+(?:add|install)|yarn\s+add|bun\s+add)\b([^\n`]*)")
 IMPORT_RE = re.compile(r"""(?:\bfrom\s+|\brequire\(\s*|\bimport\s+)['"](@[^'"]+)['"]""")
 SCOPED_NAME_RE = re.compile(r"@[A-Za-z0-9][\w.-]*/[\w.-]+")
+PLACEHOLDER_SCOPES = ("@your-org", "@example", "@myorg", "@my-org", "@acme")
+FENCE_RE = re.compile(r"^\s*(?:```|~~~)\s*(\w*)")
 DEP_SECTIONS = ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies")
 FOLDER_PACKAGES = {"core-module": "@tetherto/wdk", "cli": "@tetherto/wdk-cli"}
 MONTHS = {m: i for i, m in enumerate(
@@ -295,7 +297,24 @@ def docs_callouts(docs: Path) -> dict[str, DocVersion]:
 def _wdk_name(spec: str) -> str | None:
     """Nombre `@scope/name` de un especificador (sin version ni subruta) si contiene `wdk`."""
     match = SCOPED_NAME_RE.match(spec.strip("'\""))
-    return match.group(0) if match and "wdk" in match.group(0).lower() else None
+    if not match:
+        return None
+    scope, _, name = match.group(0).partition("/")
+    return match.group(0) if "wdk" in name.lower() and scope not in PLACEHOLDER_SCOPES else None
+
+
+def _without_removed_diff_lines(text: str) -> str:
+    """Quita las lineas `-` de los bloques ```diff y une las continuaciones con `\\`."""
+    kept: list[str] = []
+    lang: str | None = None
+    for line in text.splitlines():
+        fence = FENCE_RE.match(line)
+        if fence:
+            lang = None if lang is not None else fence.group(1).lower()
+        elif lang == "diff" and line.lstrip().startswith("-"):
+            continue
+        kept.append(line)
+    return re.sub(r"\\\n\s*", " ", "\n".join(kept))
 
 
 def docs_install_packages(docs: Path) -> dict[str, str]:
@@ -304,7 +323,7 @@ def docs_install_packages(docs: Path) -> dict[str, str]:
     pages = sorted(p for pattern in ("*.mdx", "*.md") for p in root.rglob(pattern))
     found: dict[str, str] = {}
     for page in pages:
-        text = page.read_text(encoding="utf-8", errors="replace")
+        text = _without_removed_diff_lines(page.read_text(encoding="utf-8", errors="replace"))
         specs = [t for m in INSTALL_RE.finditer(text) for t in m.group(1).split()]
         specs += [m.group(1) for m in IMPORT_RE.finditer(text)]
         for name in filter(None, map(_wdk_name, specs)):

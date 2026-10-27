@@ -270,7 +270,6 @@ no se puede ver una release posterior a la integrada en `origin/main` de cada re
 | @transak/wdk-protocol-fiat-transak | — (install:content/docs/sdk/fiat-modules/fiat-transak/api-reference.mdx) | 1.0.2 | no instalado |
 | @utexo/wdk-rgb-lightning | 0.1.0-beta.15 (changelog:2026-07-29 via github:UTEXO-Protocol/wdk-rgb-lightning) | 0.2.0-beta.5 | no instalado |
 | @utexo/wdk-wallet-rgb | — (install:content/docs/sdk/community-modules/wdk-wallet-rgb/configuration.mdx) | 2.0.3 | no instalado |
-| @your-org/wdk-module-preferences | — (install:content/docs/tools/pear-wrk-wdk/configuration.mdx) | — | no instalado |
 
 ## Entradas del changelog sin paquete reconocido
 

@@ -225,6 +225,30 @@ class DocsTest(unittest.TestCase):
         self.assertEqual(found["@tetherto/wdk-mcp-toolkit"], "content/docs/tools/mcp.mdx")
         self.assertEqual(found["@tetherto/wdk-wallet"], "content/docs/other.md")
 
+    def test_placeholder_scopes_excluded(self) -> None:
+        self.write("content/docs/a.mdx",
+                   "npm install @your-org/wdk-module-preferences @acme/wdk-x @myorg/wdk-y @tetherto/wdk-real\n"
+                   "import M from '@example/wdk-wallet-example'\nimport N from '@my-org/wdk-z'\n")
+        self.assertEqual(set(versions.docs_install_packages(self.docs)), {"@tetherto/wdk-real"})
+
+    def test_removed_diff_lines_ignored(self) -> None:
+        self.write("content/docs/a.mdx",
+                   "```diff\n- import { A } from '@tetherto/wdk-old'\n+ import { A } from '@tetherto/wdk-new'\n```\n"
+                   "```js\n- not a diff '@tetherto/wdk-kept'\nimport x from '@tetherto/wdk-after'\n```\n")
+        self.assertEqual(set(versions.docs_install_packages(self.docs)),
+                         {"@tetherto/wdk-new", "@tetherto/wdk-after"})
+
+    def test_install_flags_and_line_continuation(self) -> None:
+        self.write("content/docs/a.mdx",
+                   "npm install -D @tetherto/wdk-x\nnpm i --save @a/wdk-y @b/other\n"
+                   "npm install \\\n  @tetherto/wdk-z\n")
+        self.assertEqual(set(versions.docs_install_packages(self.docs)),
+                         {"@tetherto/wdk-x", "@a/wdk-y", "@tetherto/wdk-z"})
+
+    def test_wdk_must_be_in_name_not_scope(self) -> None:
+        self.write("content/docs/a.mdx", "npm install @wdk/tools @tetherto/wdk-ok\n")
+        self.assertEqual(set(versions.docs_install_packages(self.docs)), {"@tetherto/wdk-ok"})
+
 
 class LockedPackagesTest(unittest.TestCase):
     def setUp(self) -> None:

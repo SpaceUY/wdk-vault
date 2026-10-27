@@ -560,7 +560,6 @@
     "@transak/wdk-protocol-fiat-transak",
     "@utexo/wdk-rgb-lightning",
     "@utexo/wdk-wallet-rgb",
-    "@your-org/wdk-module-preferences",
     "github:UTEXO-Protocol/wdk-rgb-lightning",
     "github:symbiosis-finance/wdk-protocol-swidge-symbiosis"
   ]
