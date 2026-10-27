@@ -127,6 +127,12 @@ class CheckTest(unittest.TestCase):
         self.write("concepts/B.md", note("concept", "repo-b/dir"))
         self.assertEqual(self.run_check(), 0)
 
+    def test_source_only_in_working_tree_fails_when_origin_exists(self) -> None:
+        self.fetched_only_repo()
+        (self.workspace / "repo-b" / "local.md").write_text("x", encoding="utf-8")
+        self.write("concepts/A.md", note("concept", "repo-b/local.md"))
+        self.assertEqual(self.run_check(), 1)
+
     def test_source_missing_everywhere_fails(self) -> None:
         self.fetched_only_repo()
         self.write("concepts/A.md", note("concept", "repo-b/nope.md"))

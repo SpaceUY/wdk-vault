@@ -7,7 +7,7 @@ Also regenerates _meta/edges.md, the inbound-edge index for readers without
 a backlinks pane (i.e. Claude reading the vault as plain files).
 
 Beyond the base checks it verifies that every `source:` points at a real path in the
-workspace (working tree or the repo's origin/main) or is an https:// URL, that `package:` in systems/ notes exists in
+workspace (on the repo's origin/main when it has one, else in the working tree) or is an https:// URL, that `package:` in systems/ notes exists in
 _meta/versions.json, and that services/ notes carry a non-empty `detect:` list.
 Any path with a component starting with "." (.git, .obsidian, .superpowers) is not
 part of the vault and is ignored.
@@ -16,6 +16,7 @@ Usage: python3 _meta/check.py        (from the vault root, or anywhere)
 Exit 0 = clean, 1 = at least one failure. Sinks are reported, never failed on.
 """
 
+import functools
 import json
 import re
 import subprocess
@@ -100,20 +101,34 @@ def check_source(entry: str, workspace: Path) -> str | None:
     first = entry.split("/", 1)[0]
     if not (workspace / first).is_dir():
         return f"source {entry!r} does not start with a workspace directory or https://"
-    if not (workspace / entry).exists() and not exists_on_origin(workspace / first, entry.partition("/")[2]):
-        return f"source {entry!r} does not exist"
+    found = exists_on_origin(workspace / first, entry.partition("/")[2])
+    if found is None:
+        found = (workspace / entry).exists()
+        where = ""
+    else:
+        where = " on origin/main"
+    if not found:
+        return f"source {entry!r} does not exist{where}"
     return None
 
 
-def exists_on_origin(repo: Path, rest: str) -> bool:
-    """True when `rest` (file or directory) exists at `origin/main` of a git repo of the workspace.
+def exists_on_origin(repo: Path, rest: str) -> bool | None:
+    """Whether `rest` (file or directory) exists at `origin/main` of a workspace repo; None when there is no origin/main.
 
-    Maintenance only fetches, so a path can exist upstream before the working tree has it.
+    The vault indexes origin/main (maintenance only fetches), so that ref is the one that counts.
     """
-    if not rest or not (repo / ".git").exists():
-        return False
+    if not (repo / ".git").exists() or not has_origin_main(repo):
+        return None
+    if not rest.strip("/"):
+        return True
     result = subprocess.run(["git", "cat-file", "-e", f"origin/main:{rest.rstrip('/')}"],
                             cwd=repo, capture_output=True)
+    return result.returncode == 0
+
+
+@functools.cache
+def has_origin_main(repo: Path) -> bool:
+    result = subprocess.run(["git", "rev-parse", "--verify", "-q", "origin/main"], cwd=repo, capture_output=True)
     return result.returncode == 0
 
 
