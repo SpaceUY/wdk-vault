@@ -21,10 +21,14 @@ CHANGELOG_REL = "content/docs/overview/changelog.mdx"
 RELEASE_RE = re.compile(r"(?:[Rr]elease:?\s+v?|release/v)(\d+\.\d+\.\d+)")
 CALLOUT_RE = re.compile(r"These pages reflect `([^`]+)`")
 HEADING_RE = re.compile(r"^###\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})")
-GITHUB_LINK_RE = re.compile(r"github\.com/tetherto/([^/\s)]+)/releases/tag/v?([^)\s]+)")
+GITHUB_LINK_RE = re.compile(r"github\.com/tetherto/([^/\s)]+)/(?:releases/tag|tree)/v?(\d[^)\s]*)")
+SCOPED_TAG_RE = re.compile(r"github\.com/[^/\s)]+/[^/\s)]+/releases/tag/(?:%40|@)([^/\s)]+)/([^/\s)]+?)-v(\d[^)\s]*)")
+OTHER_GITHUB_RE = re.compile(r"github\.com/(?!tetherto/)([^/\s)]+)/([^/\s)]+)/(?:releases/tag|tree)/v?(\d[^)\s]*)")
+VERSION_LINK_RE = re.compile(r"\*\*(.+?)\*\*\s*\(\[v?\d[^\]]*\]\((https?://[^)\s]+)\)\)")
 NPM_LINK_RE = re.compile(r"npmjs\.com/package/((?:@[^/]+/)?[^/\s]+)/v/([^)\s]+)")
 ENTRY_RE = re.compile(r"^\s*-\s+\*\*.+?\*\*\s*\(\[[^\]]*\]\([^)]*\)\):?\s*(.*)$")
 LOCK_NAME_RE = re.compile(r"(?:^|/)node_modules/(@tetherto/[^/]+)$")
+PNPM_VERSION_RE = re.compile(r"^lockfileVersion:\s*'?(\d+)")
 PNPM_KEY_RE = re.compile(r"^  '?(@tetherto/[^@'\s]+)@(\d[^'(\s:]*)")
 DEP_SECTIONS = ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies")
 FOLDER_PACKAGES = {"core-module": "@tetherto/wdk", "cli": "@tetherto/wdk-cli"}
@@ -161,14 +165,22 @@ def repo_state(repo: Path, branch: str = "main") -> RepoState:
 
 # --------------------------------------------------------------- lockfiles
 
-def _npm_lock_versions(repo: Path) -> dict[str, list[str]]:
-    path = repo / "package-lock.json"
+LockProblem = tuple[str, str]
+
+
+def _npm_lock_versions(repo: Path) -> tuple[dict[str, list[str]], list[LockProblem]]:
+    name = "package-lock.json"
+    path = repo / name
     if not path.is_file():
-        return {}
+        return {}, []
     try:
-        packages = json.loads(path.read_text(encoding="utf-8")).get("packages", {})
-    except (json.JSONDecodeError, OSError, AttributeError):
-        return {}
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as error:
+        return {}, [(name, f"no se pudo leer: {type(error).__name__}")]
+    packages = data.get("packages") if isinstance(data, dict) else None
+    if not isinstance(packages, dict):
+        version = data.get("lockfileVersion") if isinstance(data, dict) else None
+        return {}, [(name, f"formato no soportado: sin clave packages, lockfileVersion {version}")]
     top: dict[str, str] = {}
     nested: dict[str, list[str]] = {}
     for key, info in packages.items():
@@ -185,16 +197,25 @@ def _npm_lock_versions(repo: Path) -> dict[str, list[str]]:
     for name in sorted(set(top) | set(nested)):
         ordered = ([top[name]] if name in top else []) + nested.get(name, [])
         found[name] = list(dict.fromkeys(ordered))
-    return found
+    return found, []
 
 
-def _pnpm_lock_versions(repo: Path) -> dict[str, list[str]]:
-    path = repo / "pnpm-lock.yaml"
+def _pnpm_lock_versions(repo: Path) -> tuple[dict[str, list[str]], list[LockProblem]]:
+    name = "pnpm-lock.yaml"
+    path = repo / name
     if not path.is_file():
-        return {}
+        return {}, []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as error:
+        return {}, [(name, f"no se pudo leer: {type(error).__name__}")]
+    header = next((m for m in map(PNPM_VERSION_RE.match, lines) if m), None)
+    if header is None or int(header.group(1)) < 9:
+        found = header.group(1) if header else "ausente"
+        return {}, [(name, f"formato no soportado: lockfileVersion {found}")]
     collected: dict[str, set[str]] = {}
     section = ""
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in lines:
         if line and not line[0].isspace() and line.endswith(":"):
             section = line[:-1]
             continue
@@ -203,7 +224,7 @@ def _pnpm_lock_versions(repo: Path) -> dict[str, list[str]]:
         match = PNPM_KEY_RE.match(line)
         if match:
             collected.setdefault(match.group(1), set()).add(match.group(2))
-    return {n: sorted(v, key=version_key, reverse=True) for n, v in sorted(collected.items())}
+    return {n: sorted(v, key=version_key, reverse=True) for n, v in sorted(collected.items())}, []
 
 
 def _git_pins(repo: Path) -> dict[str, list[str]]:
@@ -231,12 +252,18 @@ def _git_pins(repo: Path) -> dict[str, list[str]]:
     return pins
 
 
-def locked_packages(repo: Path) -> dict[str, list[str]]:
-    found = _npm_lock_versions(repo)
-    for name, vers in _pnpm_lock_versions(repo).items():
+def scan_lockfiles(repo: Path) -> tuple[dict[str, list[str]], list[LockProblem]]:
+    """Paquetes `@tetherto/*` fijados y los lockfiles que no se pudieron leer: (archivo, motivo)."""
+    found, problems = _npm_lock_versions(repo)
+    pnpm, pnpm_problems = _pnpm_lock_versions(repo)
+    for name, vers in pnpm.items():
         found[name] = list(dict.fromkeys(found.get(name, []) + vers))
     found.update(_git_pins(repo))
-    return dict(sorted(found.items()))
+    return dict(sorted(found.items())), problems + pnpm_problems
+
+
+def locked_packages(repo: Path) -> dict[str, list[str]]:
+    return scan_lockfiles(repo)[0]
 
 
 # -------------------------------------------------------------------- docs
@@ -268,13 +295,20 @@ def _plain_text(text: str) -> str:
 
 
 def _entry_package(line: str) -> tuple[str, str] | None:
-    github = GITHUB_LINK_RE.search(line)
-    npm = NPM_LINK_RE.search(line)
-    if github and (not npm or github.start() < npm.start()):
-        return f"@tetherto/{github.group(1)}", github.group(2)
-    if npm:
-        return npm.group(1), npm.group(2)
-    return None
+    """Paquete y version del link de version de la linea (o de la linea entera si no hay)."""
+    link = VERSION_LINK_RE.search(line)
+    target = link.group(2) if link else line
+    candidates = []
+    for regex, build in (
+        (GITHUB_LINK_RE, lambda m: (f"@tetherto/{m.group(1)}", m.group(2))),
+        (NPM_LINK_RE, lambda m: (m.group(1), m.group(2))),
+        (SCOPED_TAG_RE, lambda m: (f"@{m.group(1)}/{m.group(2)}", m.group(3))),
+        (OTHER_GITHUB_RE, lambda m: (f"github:{m.group(1)}/{m.group(2)}", m.group(3))),
+    ):
+        match = regex.search(target)
+        if match:
+            candidates.append((match.start(), build(match)))
+    return min(candidates, key=lambda c: c[0])[1] if candidates else None
 
 
 def _heading_date(line: str) -> str | None:
@@ -299,6 +333,18 @@ def changelog_entries(text: str) -> list[ChangelogEntry]:
         summary = _plain_text(body.group(1) if body else line)[:SUMMARY_LEN]
         entries.append(ChangelogEntry(current, found[0], found[1], "[Breaking]" in line, summary))
     return entries
+
+
+def changelog_unmapped(text: str) -> list[str]:
+    """Lineas del changelog con link de version pero sin paquete reconocido."""
+    unmapped: list[str] = []
+    current = ""
+    for line in text.splitlines():
+        current = _heading_date(line) or current
+        link = VERSION_LINK_RE.search(line) if line.lstrip().startswith("- ") else None
+        if link and not _entry_package(line):
+            unmapped.append(f"{current or 'sin fecha'} · {_plain_text(link.group(1))}: {link.group(2)}")
+    return unmapped
 
 
 def changelog_top_date(text: str) -> str:
@@ -386,14 +432,19 @@ def _package_row(package: str, mine: list[str], documented: dict[str, DocVersion
 
 def _repo_sections(states: list[RepoState], locked_by_repo: dict[str, dict[str, list[str]]],
                    documented: dict[str, DocVersion], entries: list[ChangelogEntry],
-                   npm_latest: dict[str, str]) -> tuple[list[str], list[str]]:
+                   npm_latest: dict[str, str],
+                   lock_problems: dict[str, list[LockProblem]]) -> tuple[list[str], list[str]]:
     lines: list[str] = []
     breaking_lines: list[str] = []
     for s in states:
         lines += [f"## {s.name}", ""]
         locked = locked_by_repo.get(s.name, {})
+        problems = lock_problems.get(s.name, [])
+        lines += [f"lockfile ilegible: {file} ({reason})" for file, reason in problems]
+        if problems:
+            lines.append("")
         if not locked:
-            lines += ["Sin paquetes `@tetherto/*` fijados.", ""]
+            lines += [] if problems else ["Sin paquetes `@tetherto/*` fijados.", ""]
             continue
         lines += ["| paquete | mi versión | documentada (fuente) | npm latest | estado | cambios en el rango |",
                   "|---|---|---|---|---|---|"]
@@ -422,7 +473,8 @@ def _catalog_table(catalog: dict[str, DocVersion], locked_by_repo: dict[str, dic
 
 def render_versions_md(states: list[RepoState], locked_by_repo: dict[str, dict[str, list[str]]],
                        documented: dict[str, DocVersion], entries: list[ChangelogEntry],
-                       npm_latest: dict[str, str]) -> str:
+                       npm_latest: dict[str, str], unmapped: list[str] | None = None,
+                       lock_problems: dict[str, list[LockProblem]] | None = None) -> str:
     lines = [
         "# Versiones: mi versión vs desplegada vs documentada",
         "",
@@ -431,11 +483,14 @@ def render_versions_md(states: list[RepoState], locked_by_repo: dict[str, dict[s
         "",
     ]
     lines += _repos_table(states) + [""]
-    sections, breaking_lines = _repo_sections(states, locked_by_repo, documented, entries, npm_latest)
+    sections, breaking_lines = _repo_sections(
+        states, locked_by_repo, documented, entries, npm_latest, lock_problems or {})
     lines += sections
     lines += ["## Cambios breaking entre mi versión y la documentada", ""]
     lines += (breaking_lines or ["Ninguno."]) + [""]
-    lines += _catalog_table(_catalog(documented, entries), locked_by_repo, npm_latest)
+    lines += _catalog_table(_catalog(documented, entries), locked_by_repo, npm_latest) + [""]
+    lines += ["## Entradas del changelog sin paquete reconocido", ""]
+    lines += [f"- {item}" for item in unmapped or []] or ["Ninguna."]
     return "\n".join(lines) + "\n"
 
 
@@ -517,12 +572,20 @@ def main(argv: list[str], vault: Path = VAULT) -> int:
 
     repos = _discover_repos(workspace, vault)
     states = [repo_state(r, _analysis_branch(r)) for r in repos]
-    locked_by_repo = {r.name: locked_packages(r) for r in repos}
+    scans = {r.name: scan_lockfiles(r) for r in repos}
+    locked_by_repo = {name: scan[0] for name, scan in scans.items()}
+    lock_problems = {name: scan[1] for name, scan in scans.items() if scan[1]}
     changelog = _read_changelog(docs)
     entries = changelog_entries(changelog)
+    unmapped = changelog_unmapped(changelog)
+    for name, problems in lock_problems.items():
+        for file, reason in problems:
+            print(f"warning: {name}: lockfile ilegible {file} ({reason})", file=sys.stderr)
+    for item in unmapped:
+        print(f"warning: changelog sin paquete reconocido: {item}", file=sys.stderr)
     documented = documented_versions(docs)
     catalog = _catalog(documented, entries)
-    npm_latest = _fetch_npm_latest(list(catalog)) if args.npm else {}
+    npm_latest = _fetch_npm_latest([p for p in catalog if not p.startswith("github:")]) if args.npm else {}
 
     packages = set(catalog)
     for locked in locked_by_repo.values():
@@ -530,10 +593,13 @@ def main(argv: list[str], vault: Path = VAULT) -> int:
     today = date.today().isoformat()
     meta = vault / "_meta"
     (meta / "versions.md").write_text(
-        render_versions_md(states, locked_by_repo, documented, entries, npm_latest), encoding="utf-8")
+        render_versions_md(states, locked_by_repo, documented, entries, npm_latest, unmapped, lock_problems),
+        encoding="utf-8")
     payload = {
         "generated": today,
-        "repos": {s.name: {**asdict(s), "locked": locked_by_repo[s.name]} for s in states},
+        "repos": {s.name: {**asdict(s), "locked": locked_by_repo[s.name],
+                         "lockfile_problems": [f"{f} ({r})" for f, r in lock_problems.get(s.name, [])]}
+                  for s in states},
         "packages": sorted(packages),
     }
     (meta / "versions.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

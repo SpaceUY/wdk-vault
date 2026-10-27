@@ -5,6 +5,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 META = Path(__file__).resolve().parent.parent
@@ -147,6 +148,43 @@ class DocsTest(unittest.TestCase):
         self.assertNotIn("`", wallet.summary)
         self.assertLessEqual(len(wallet.summary), 160)
 
+    def test_changelog_generic_github_forms(self) -> None:
+        text = (
+            "### September 30, 2026\n"
+            "- **swidge-symbiosis** ([v1.3.0](https://github.com/symbiosis-finance/wdk-protocol-swidge-symbiosis/tree/v1.3.0)): Execute routes.\n"
+            "- **rgb-lightning** ([v0.1.0-beta.15](https://github.com/UTEXO-Protocol/wdk-rgb-lightning/releases/tag/v0.1.0-beta.15)): Add module.\n"
+        )
+        entries = versions.changelog_entries(text)
+        self.assertEqual(
+            [(e.package, e.version) for e in entries],
+            [("github:symbiosis-finance/wdk-protocol-swidge-symbiosis", "1.3.0"),
+             ("github:UTEXO-Protocol/wdk-rgb-lightning", "0.1.0-beta.15")],
+        )
+        self.assertEqual(versions.changelog_unmapped(text), [])
+
+    def test_changelog_monorepo_tag_form(self) -> None:
+        text = (
+            "### September 20, 2026\n"
+            "- **lending-morpho-evm** ([v1.0.5](https://github.com/morpho-org/sdks/releases/tag/%40morpho-org/wdk-protocol-lending-morpho-evm-v1.0.5)): Raise sdk.\n"
+        )
+        (entry,) = versions.changelog_entries(text)
+        self.assertEqual((entry.package, entry.version), ("@morpho-org/wdk-protocol-lending-morpho-evm", "1.0.5"))
+
+    def test_changelog_unmapped_link_is_reported_and_rendered(self) -> None:
+        text = (
+            "### September 20, 2026\n"
+            "- **mystery** ([v2.0.0](https://example.com/releases/2.0.0)): Something.\n"
+            "- **plain** no version link here.\n"
+        )
+        self.assertEqual(versions.changelog_entries(text), [])
+        unmapped = versions.changelog_unmapped(text)
+        self.assertEqual(len(unmapped), 1)
+        self.assertIn("https://example.com/releases/2.0.0", unmapped[0])
+        self.assertIn("2026-09-20", unmapped[0])
+        rendered = versions.render_versions_md([state()], {}, {}, [], {}, unmapped)
+        section = rendered.split("## Entradas del changelog sin paquete reconocido", 1)[1]
+        self.assertIn("https://example.com/releases/2.0.0", section)
+
     def test_changelog_top_date_with_anchor(self) -> None:
         self.assertEqual(versions.changelog_top_date("### October 14, 2026 [#october-14-2026]\n"), "2026-10-14")
         self.assertEqual(versions.changelog_top_date("intro\n### October 14, 2026\n"), "2026-10-14")
@@ -224,6 +262,32 @@ class LockedPackagesTest(unittest.TestCase):
             "@tetherto/pear-wrk-wdk": ["1.0.0-beta.8"],
             "@tetherto/wdk-wallet": ["1.0.0-beta.17"],
         })
+
+    def test_malformed_package_lock_is_reported_not_empty(self) -> None:
+        (self.repo / "package-lock.json").write_text("{not json", encoding="utf-8")
+        found, problems = versions.scan_lockfiles(self.repo)
+        self.assertEqual(found, {})
+        self.assertEqual([f for f, _ in problems], ["package-lock.json"])
+        text = versions.render_versions_md(
+            [state("repo")], {"repo": found}, {}, [], {}, lock_problems={"repo": problems})
+        self.assertIn("lockfile ilegible: package-lock.json", text)
+        self.assertNotIn("Sin paquetes", text)
+
+    def test_lockfile_v1_without_packages_is_reported(self) -> None:
+        (self.repo / "package-lock.json").write_text('{"lockfileVersion": 1, "dependencies": {}}', encoding="utf-8")
+        _, problems = versions.scan_lockfiles(self.repo)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("lockfileVersion 1", problems[0][1])
+
+    def test_unsupported_pnpm_lock_is_reported(self) -> None:
+        (self.repo / "pnpm-lock.yaml").write_text("lockfileVersion: '6.0'\n", encoding="utf-8")
+        _, problems = versions.scan_lockfiles(self.repo)
+        self.assertEqual([f for f, _ in problems], ["pnpm-lock.yaml"])
+
+    def test_clean_repo_without_lockfile_has_no_problems(self) -> None:
+        self.assertEqual(versions.scan_lockfiles(self.repo), ({}, []))
+        text = versions.render_versions_md([state("repo")], {"repo": {}}, {}, [], {})
+        self.assertIn("Sin paquetes", text)
 
 
 class RenderTest(unittest.TestCase):
@@ -303,6 +367,27 @@ class RenderTest(unittest.TestCase):
         self.assertIn("site_matches_repo: yes", doc)
         self.assertNotIn("site_matches_repo", sections[1])
         self.assertIn("privados", text)
+
+
+class DocsSiteTest(unittest.TestCase):
+    def decide(self, site_top: str, repo_top: str) -> dict:
+        with mock.patch.object(versions, "_site_changelog_top", return_value=site_top):
+            return versions._docs_site(repo_top)
+
+    def test_site_matches_repo_after_normalizing_anchor(self) -> None:
+        site_top = versions.changelog_top_date("### October 14, 2026 [#october-14-2026]\n")
+        repo_top = versions.changelog_top_date("### October 14, 2026\n")
+        self.assertEqual(self.decide(site_top, repo_top)["site_matches_repo"], "yes")
+
+    def test_site_differs_from_repo(self) -> None:
+        result = self.decide("2026-10-14", "2026-10-07")
+        self.assertEqual(result["site_matches_repo"], "no")
+        self.assertEqual(result["site_changelog_top"], "2026-10-14")
+        self.assertEqual(result["repo_changelog_top"], "2026-10-07")
+
+    def test_unknown_when_site_unreachable_or_repo_empty(self) -> None:
+        self.assertEqual(self.decide("unknown", "2026-10-14")["site_matches_repo"], "unknown")
+        self.assertEqual(self.decide("2026-10-14", "")["site_matches_repo"], "unknown")
 
 
 class MainTest(unittest.TestCase):
