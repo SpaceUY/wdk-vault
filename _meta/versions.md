@@ -215,7 +215,7 @@ no se puede ver una release posterior a la integrada en `origin/main` de cada re
 | paquete | documentada (fuente) | npm latest | lo uso en |
 |---|---|---|---|
 | @0x/wdk-protocol-swidge-0x | 0.1.0 (changelog:2026-08-12) | 0.1.0 | no instalado |
-| @base58-io/wdk-wallet-cosmos | — (install:content/docs/sdk/community-modules/wdk-wallet-cosmos/guides/check-balances.mdx) | 1.0.0-beta.6 | no instalado |
+| @base58-io/wdk-wallet-cosmos | 1.0.0-beta.4 (mention:content/docs/sdk/community-modules/wdk-wallet-cosmos/api-reference.mdx) | 1.0.0-beta.6 | no instalado |
 | @bermuda/wdk-wallet-evm-bermuda | — (install:content/docs/sdk/wallet-modules/wallet-evm-bermuda/api-reference.mdx) | — | no instalado |
 | @butternetwork/wdk-protocol-swidge-butter | 0.2.0 (changelog:2026-09-17) | 0.2.0 | no instalado |
 | @candidelabs/wdk-protocol-sda-candide | 1.0.0-beta.1 (changelog:2026-10-05) | 1.0.0-beta.1 | no instalado |
@@ -225,6 +225,7 @@ no se puede ver una release posterior a la integrada en `origin/main` de cada re
 | @morpho-org/wdk-protocol-lending-morpho-evm | 1.0.5 (changelog:2026-07-23) | 3.0.0 | no instalado |
 | @rhino.fi/wdk-protocol-sda-rhinofi | 1.2.0 (changelog:2026-10-14) | 1.2.0 | no instalado |
 | @rhino.fi/wdk-protocol-swidge-rhinofi | 1.0.0-beta.2 (changelog:2026-07-07) | 1.4.0 | no instalado |
+| @semanticio/wdk-wallet-evm-x402-facilitator | 1.0.0-beta.2 (mention:content/docs/ai/x402.mdx) | 1.0.0-beta.2 | no instalado |
 | @symbiosis-finance/wdk-protocol-swidge-symbiosis | 1.3.0 (changelog:2026-08-01 via github:symbiosis-finance/wdk-protocol-swidge-symbiosis) | 1.3.0 | no instalado |
 | @tetherto/create-wdk-module | 1.0.0-beta.3 (changelog:2026-07-30) | 1.0.0-beta.4 | no instalado |
 | @tetherto/pear-wrk-wdk | 1.0.0-beta.16 (callout:content/docs/tools/pear-wrk-wdk/index.mdx) | 1.0.0-beta.17 | wdk-qualification-exercise 1.0.0-beta.8 |
@@ -237,7 +238,7 @@ no se puede ver una release posterior a la integrada en `origin/main` de cada re
 | @tetherto/wdk-core-react-native | 1.0.0-beta.6 (changelog:2026-03-24) | — | no instalado |
 | @tetherto/wdk-failover-provider | 1.0.0-beta.3 (changelog:2026-07-22) | 1.0.0-beta.4 | wdk-indexer-wrk-solana 1.0.0-beta.2; wdk-qualification-exercise 1.0.0-beta.2 |
 | @tetherto/wdk-indexer-http | 1.0.1 (changelog:2026-10-07) | 1.0.3 | no instalado |
-| @tetherto/wdk-mcp-toolkit | — (install:content/docs/ai/mcp-toolkit/api-reference.mdx) | 0.0.0 | no instalado |
+| @tetherto/wdk-mcp-toolkit | 1.0.0-beta.1 (callout-beta:content/docs/ai/mcp-toolkit/index.mdx) | 0.0.0 | no instalado |
 | @tetherto/wdk-p2p-address-book | 1.0.0-beta.3 (changelog:2026-08-10) | 1.0.0-beta.3 | no instalado |
 | @tetherto/wdk-pricing-bitfinex-http | 1.0.0-beta.6 (changelog:2026-10-05) | 1.0.0-beta.7 | no instalado |
 | @tetherto/wdk-pricing-coingecko-http | 1.0.0-beta.2 (changelog:2026-08-12) | 1.0.0-beta.3 | no instalado |
@@ -269,7 +270,8 @@ no se puede ver una release posterior a la integrada en `origin/main` de cada re
 | @tetherto/wdk-worklet-bundler | 1.0.0-beta.14 (callout:content/docs/tools/worklet-bundler/index.mdx) | 1.0.0-beta.16 | wdk-qualification-exercise 1.0.0-beta.3 |
 | @transak/wdk-protocol-fiat-transak | — (install:content/docs/sdk/fiat-modules/fiat-transak/api-reference.mdx) | 1.0.2 | no instalado |
 | @utexo/wdk-rgb-lightning | 0.1.0-beta.15 (changelog:2026-07-29 via github:UTEXO-Protocol/wdk-rgb-lightning) | 0.2.0-beta.5 | no instalado |
-| @utexo/wdk-wallet-rgb | — (install:content/docs/sdk/community-modules/wdk-wallet-rgb/configuration.mdx) | 2.0.3 | no instalado |
+| @utexo/wdk-wallet-rgb | 2.0.3 (mention:content/docs/sdk/community-modules/wdk-wallet-rgb/api-reference.mdx) | 2.0.3 | no instalado |
+| wdk-protocol-swidge-orchestra | — (install:content/docs/sdk/swidge-modules/swidge-orchestra/configuration.mdx) | 0.2.0 | no instalado |
 
 ## Entradas del changelog sin paquete reconocido
 

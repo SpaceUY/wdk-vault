@@ -33,6 +33,11 @@ PNPM_KEY_RE = re.compile(r"^  '?(@tetherto/[^@'\s]+)@(\d[^'(\s:]*)")
 INSTALL_RE = re.compile(r"\b(?:npm\s+(?:install|i)|pnpm\s+(?:add|install)|yarn\s+add|bun\s+add)\b([^\n`]*)")
 IMPORT_RE = re.compile(r"""(?:\bfrom\s+|\brequire\(\s*|\bimport\s+)['"](@[^'"]+)['"]""")
 SCOPED_NAME_RE = re.compile(r"@[A-Za-z0-9][\w.-]*/[\w.-]+")
+UNSCOPED_NAME_RE = re.compile(r"wdk-(?:protocol|wallet)-[\w.-]+")
+MENTION_RE = re.compile(
+    r"`(@[A-Za-z0-9][\w.-]*/[\w.-]+|[\w.-]+)@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)`")
+CALLOUT_BLOCK_RE = re.compile(r"<Callout\b[^>]*>(.*?)</Callout>", re.DOTALL)
+BETA_VERSION_RE = re.compile(r"`(v\d+\.\d+\.\d+[^`\s]*)`")
 PLACEHOLDER_SCOPES = ("@your-org", "@example", "@myorg", "@my-org", "@acme")
 FENCE_RE = re.compile(r"^\s*(?:```|~~~)\s*(\w*)")
 DEP_SECTIONS = ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies")
@@ -295,8 +300,12 @@ def docs_callouts(docs: Path) -> dict[str, DocVersion]:
 
 
 def _wdk_name(spec: str) -> str | None:
-    """Nombre `@scope/name` de un especificador (sin version ni subruta) si contiene `wdk`."""
-    match = SCOPED_NAME_RE.match(spec.strip("'\""))
+    """Nombre de un especificador (sin version ni subruta): `@scope/*wdk*` o `wdk-protocol-*`/`wdk-wallet-*` sin scope."""
+    spec = spec.strip("'\"")
+    unscoped = UNSCOPED_NAME_RE.match(spec)
+    if unscoped:
+        return unscoped.group(0)
+    match = SCOPED_NAME_RE.match(spec)
     if not match:
         return None
     scope, _, name = match.group(0).partition("/")
@@ -318,16 +327,48 @@ def _without_removed_diff_lines(text: str) -> str:
 
 
 def docs_install_packages(docs: Path) -> dict[str, str]:
-    """Paquetes `@scope/*wdk*` nombrados en comandos de instalacion o imports: paquete -> primera pagina."""
-    root = docs / "content" / "docs"
-    pages = sorted(p for pattern in ("*.mdx", "*.md") for p in root.rglob(pattern))
+    """Paquetes WDK nombrados en comandos de instalacion o imports: paquete -> primera pagina."""
     found: dict[str, str] = {}
-    for page in pages:
+    for page in _pages(docs):
         text = _without_removed_diff_lines(page.read_text(encoding="utf-8", errors="replace"))
         specs = [t for m in INSTALL_RE.finditer(text) for t in m.group(1).split()]
         specs += [m.group(1) for m in IMPORT_RE.finditer(text)]
         for name in filter(None, map(_wdk_name, specs)):
             found.setdefault(name, page.relative_to(docs).as_posix())
+    return found
+
+
+def _pages(docs: Path) -> list[Path]:
+    root = docs / "content" / "docs"
+    return sorted(p for pattern in ("*.mdx", "*.md") for p in root.rglob(pattern))
+
+
+def docs_version_mentions(docs: Path) -> dict[str, DocVersion]:
+    """Paquetes WDK nombrados con version entre backticks (`pkg@x.y.z`): la version mas alta de cada uno."""
+    found: dict[str, DocVersion] = {}
+    for page in _pages(docs):
+        text = _without_removed_diff_lines(page.read_text(encoding="utf-8", errors="replace"))
+        for match in MENTION_RE.finditer(text):
+            package, version = _wdk_name(match.group(1)), match.group(2)
+            current = found.get(package) if package else None
+            if package and (current is None or version_key(version) > version_key(current.version)):
+                found[package] = DocVersion(package, version, f"mention:{page.relative_to(docs).as_posix()}")
+    return found
+
+
+def docs_beta_callouts(docs: Path, known: set[str]) -> dict[str, DocVersion]:
+    """Version `v<semver>` de un Callout de un index.mdx, para el paquete que infiere la carpeta si ya se conoce."""
+    found: dict[str, DocVersion] = {}
+    for mdx in sorted((docs / "content" / "docs").rglob("index.mdx")):
+        text = mdx.read_text(encoding="utf-8", errors="replace")
+        for block in CALLOUT_BLOCK_RE.finditer(text):
+            match = BETA_VERSION_RE.search(block.group(1))
+            if not match:
+                continue
+            package, version = _callout_package(match.group(1), mdx)
+            current = found.get(package)
+            if package in known and (current is None or version_key(version) > version_key(current.version)):
+                found[package] = DocVersion(package, version, f"callout-beta:{mdx.relative_to(docs).as_posix()}")
     return found
 
 
@@ -411,9 +452,11 @@ def _newest_per_package(entries: list[ChangelogEntry]) -> dict[str, DocVersion]:
     return {p: DocVersion(p, e.version, f"changelog:{e.date}") for p, e in newest.items()}
 
 
-def documented_versions(docs: Path) -> dict[str, DocVersion]:
-    found = _newest_per_package(changelog_entries(_read_changelog(docs)))
-    found.update(docs_callouts(docs))
+def documented_versions(docs: Path, installs: dict[str, str] | None = None) -> dict[str, DocVersion]:
+    """Precedencia: aviso `These pages reflect`, changelog, aviso beta, mencion `pkg@ver`."""
+    changelog = _newest_per_package(changelog_entries(_read_changelog(docs)))
+    beta = docs_beta_callouts(docs, set(changelog) | set(installs or {}))
+    found = {**docs_version_mentions(docs), **beta, **changelog, **docs_callouts(docs)}
     return dict(sorted(found.items()))
 
 
@@ -424,11 +467,12 @@ def documented_with_installs(documented: dict[str, DocVersion], installs: dict[s
 
 
 def _merge_github_ids(catalog: dict[str, DocVersion]) -> dict[str, DocVersion]:
-    """Un paquete solo de instalacion toma la version del id `github:<org>/<repo>` del mismo modulo."""
+    """Un paquete sin version, o solo con una mencion o aviso beta, toma la version del changelog del id `github:<org>/<repo>`."""
     by_repo = {p.rpartition("/")[2]: p for p in catalog if p.startswith("github:")}
     for package, doc in list(catalog.items()):
         github = by_repo.get(package.rpartition("/")[2])
-        if doc.version or not github or package.startswith("github:"):
+        weak = not doc.version or doc.source.startswith(("mention:", "callout-beta:"))
+        if not weak or not github or package.startswith("github:"):
             continue
         found = catalog.pop(github)
         catalog[package] = DocVersion(package, found.version, f"{found.source} via {github}")
@@ -648,7 +692,8 @@ def main(argv: list[str], vault: Path = VAULT) -> int:
             print(f"warning: {name}: lockfile ilegible {file} ({reason})", file=sys.stderr)
     for item in unmapped:
         print(f"warning: changelog sin paquete reconocido: {item}", file=sys.stderr)
-    documented = documented_with_installs(documented_versions(docs), docs_install_packages(docs))
+    installs = docs_install_packages(docs)
+    documented = documented_with_installs(documented_versions(docs, installs), installs)
     catalog = _catalog(documented, entries)
     npm_latest = _fetch_npm_latest([p for p in catalog if not p.startswith("github:")]) if args.npm else {}
 

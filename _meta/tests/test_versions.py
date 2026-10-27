@@ -249,6 +249,55 @@ class DocsTest(unittest.TestCase):
         self.write("content/docs/a.mdx", "npm install @wdk/tools @tetherto/wdk-ok\n")
         self.assertEqual(set(versions.docs_install_packages(self.docs)), {"@tetherto/wdk-ok"})
 
+    def test_unscoped_wdk_protocol_package_collected(self) -> None:
+        self.write("content/docs/sdk/swidge-modules/swidge-orchestra/guide.mdx",
+                   "```bash\nnpm install wdk-protocol-swidge-orchestra @tetherto/wdk-wallet@1.0.0-beta.11\n"
+                   "npm install wdk-cli wdk-foo wdk-wallet-custom\n```\n")
+        found = versions.docs_install_packages(self.docs)
+        self.assertIn("wdk-protocol-swidge-orchestra", found)
+        self.assertIn("wdk-wallet-custom", found)
+        self.assertNotIn("wdk-cli", found)
+        self.assertNotIn("wdk-foo", found)
+
+    def test_version_mention_used_when_no_callout_or_changelog(self) -> None:
+        self.write("content/docs/ai/x402.mdx",
+                   "The `@semanticio/wdk-wallet-evm-x402-facilitator@1.0.0-beta.2` package depends on "
+                   "`@x402/evm@2.2.0` and `@your-org/wdk-x@9.9.9`.\n"
+                   "```diff\n- `@tetherto/wdk-old@1.0.0`\n```\n")
+        self.write("content/docs/ai/other.md", "Also `@semanticio/wdk-wallet-evm-x402-facilitator@1.0.0-beta.1`.\n")
+        mentions = versions.docs_version_mentions(self.docs)
+        self.assertEqual(set(mentions), {"@semanticio/wdk-wallet-evm-x402-facilitator"})
+        found = versions.documented_versions(self.docs)["@semanticio/wdk-wallet-evm-x402-facilitator"]
+        self.assertEqual(found.version, "1.0.0-beta.2")
+        self.assertEqual(found.source, "mention:content/docs/ai/x402.mdx")
+
+    def test_version_mention_never_overrides_callout_or_changelog(self) -> None:
+        self.write("content/docs/overview/changelog.mdx", CHANGELOG)
+        self.write("content/docs/sdk/wallet-modules/wallet-evm/index.mdx",
+                   "These pages reflect `@tetherto/wdk-wallet-evm@1.0.0-beta.20`.\n")
+        self.write("content/docs/ai/x402.mdx",
+                   "Uses `@tetherto/wdk-wallet-evm@1.0.0-beta.99`, `@tetherto/wdk-wallet@1.0.0-beta.99` "
+                   "and `wdk-protocol-swidge-orchestra@2.0.0`.\n")
+        found = versions.documented_versions(self.docs)
+        self.assertEqual(found["@tetherto/wdk-wallet-evm"].version, "1.0.0-beta.20")
+        self.assertEqual(found["@tetherto/wdk-wallet"].version, "1.0.0-beta.22")
+        self.assertEqual(found["@tetherto/wdk-wallet"].source, "changelog:2026-10-06")
+        self.assertEqual(found["wdk-protocol-swidge-orchestra"].source, "mention:content/docs/ai/x402.mdx")
+
+    def test_beta_callout_version_for_known_package(self) -> None:
+        callout = ('<Callout type="warn">\n**Beta** - This package is in active development (`v1.0.0-beta.1`). '
+                   'APIs may change.\n</Callout>\n')
+        self.write("content/docs/ai/mcp-toolkit/index.mdx", callout)
+        self.write("content/docs/ai/unknown-thing/index.mdx", callout)
+        self.write("content/docs/ai/mcp-toolkit/setup.mdx", "npm install @tetherto/wdk-mcp-toolkit\n")
+        found = versions.documented_versions(
+            self.docs, versions.docs_install_packages(self.docs))
+        toolkit = found["@tetherto/wdk-mcp-toolkit"]
+        self.assertEqual(toolkit.version, "1.0.0-beta.1")
+        self.assertEqual(toolkit.source, "callout-beta:content/docs/ai/mcp-toolkit/index.mdx")
+        self.assertNotIn("@tetherto/wdk-unknown-thing", found)
+        self.assertEqual(list(found), ["@tetherto/wdk-mcp-toolkit"])
+
 
 class LockedPackagesTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -378,6 +427,14 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertTrue(rows[0].startswith(f"| {npm} |"))
         self.assertIn(f"1.0.0-beta.2 (changelog:2026-09-20 via {gh})", rows[0])
+
+    def test_changelog_github_id_beats_mention_of_same_module(self) -> None:
+        gh, npm = "github:acme-labs/wdk-protocol-x", "@acme-labs/wdk-protocol-x"
+        documented = {npm: versions.DocVersion(npm, "1.0.0", "mention:content/docs/a.mdx"),
+                      gh: versions.DocVersion(gh, "1.1.0", "changelog:2026-09-20")}
+        catalog = versions._merge_github_ids(dict(documented))
+        self.assertEqual(list(catalog), [npm])
+        self.assertEqual(catalog[npm].version, "1.1.0")
 
     def test_empty_documented_version_not_compared(self) -> None:
         pkg = "@tetherto/wdk-mcp-toolkit"

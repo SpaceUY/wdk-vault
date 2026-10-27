@@ -1,6 +1,7 @@
 ---
 type: system
 status: shipped
+package: wdk-protocol-swidge-orchestra
 source:
   - wdk-docs/content/docs/sdk/swidge-modules/swidge-orchestra/index.mdx
   - wdk-docs/content/docs/sdk/swidge-modules/swidge-orchestra/configuration.mdx
@@ -8,7 +9,7 @@ source:
 ---
 # swidge-orchestra
 
-Módulo comunitario mantenido por Flashnet (paquete `wdk-protocol-swidge-orchestra`, sin scope y ausente del catálogo de `_meta/versions.md`) que implementa `SwidgeProtocol` para rutas de BTC y stablecoins que sirve Flashnet Orchestra. `quoteSwidge()` no tiene efectos; `swidge()` y `executeSwapIntent()` pueden mover fondos de la cuenta de origen, por lo que la app debe persistir el intent y el estado antes y después del pago. Lightning no debe exponerse como origen.
+Módulo comunitario mantenido por Flashnet (paquete `wdk-protocol-swidge-orchestra`, sin scope) que implementa `SwidgeProtocol` para rutas de BTC y stablecoins que sirve Flashnet Orchestra. `quoteSwidge()` no tiene efectos; `swidge()` y `executeSwapIntent()` pueden mover fondos de la cuenta de origen, por lo que la app debe persistir el intent y el estado antes y después del pago. Lightning no debe exponerse como origen.
 
 ## Structural
 - depends on → [[wdk-wallet]] because envía los pagos de origen desde cuentas de WDK y registra las cuentas fuente

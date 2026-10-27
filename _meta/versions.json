@@ -503,6 +503,7 @@
     "@morpho-org/wdk-protocol-lending-morpho-evm",
     "@rhino.fi/wdk-protocol-sda-rhinofi",
     "@rhino.fi/wdk-protocol-swidge-rhinofi",
+    "@semanticio/wdk-wallet-evm-x402-facilitator",
     "@symbiosis-finance/wdk-protocol-swidge-symbiosis",
     "@tetherto/create-wdk-module",
     "@tetherto/docs-seo-core",
@@ -561,6 +562,7 @@
     "@utexo/wdk-rgb-lightning",
     "@utexo/wdk-wallet-rgb",
     "github:UTEXO-Protocol/wdk-rgb-lightning",
-    "github:symbiosis-finance/wdk-protocol-swidge-symbiosis"
+    "github:symbiosis-finance/wdk-protocol-swidge-symbiosis",
+    "wdk-protocol-swidge-orchestra"
   ]
 }
