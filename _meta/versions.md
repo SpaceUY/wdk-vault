@@ -4,7 +4,7 @@ Archivo generado por `_meta/versions.py`; no se edita a mano. Los upstream de Te
 no se puede ver una release posterior a la integrada en `origin/main` de cada repo.
 Las versiones salen de la ref analizada (`origin/main`), no del checkout local.
 
-npm consultado: sí (2026-10-26).
+npm consultado: sí (2026-10-27).
 
 ## Repos: mi versión vs desplegada
 

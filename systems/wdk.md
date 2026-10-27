@@ -6,6 +6,7 @@ source:
   - wdk-docs/content/docs/sdk/core-module/index.mdx
   - wdk-docs/content/docs/sdk/core-module/api-reference.mdx
   - wdk-docs/content/docs/sdk/core-module/guides/error-handling.mdx
+  - wdk-docs/content/docs/start-building/nodejs-bare-quickstart.mdx
   - wdk-docs/content/docs/ai/agent-skills.mdx
   - wdk-docs/content/docs/overview/changelog.mdx
 ---

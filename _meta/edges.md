@@ -72,6 +72,8 @@ copy lives in the origin note, this is only the reverse lookup.
 - wdk-react-native-core — mitigates → Fuga de seed por almacenamiento inseguro because guarda las credenciales cifradas en el keychain del dispositivo
 - wdk-react-native-secure-storage — mitigates → Fuga de seed por almacenamiento inseguro because mantiene el material de la wallet cifrado en el keychain del dispositivo
 - wdk-secret-manager — mitigates → Fuga de seed por almacenamiento inseguro because cifra la seed con una passkey y la limpia de memoria
+- wdk-signer-local — mitigates → Fuga de seed por almacenamiento inseguro because su README describe el guardado de los secretos en el keychain o el KeyStore de la plataforma en lugar de en claro
+- wdk-starter-kotlin — evidences → Fuga de seed por almacenamiento inseguro because su README admite que guarda la clave de cifrado junto a la seed cifrada, sin respaldo por hardware, y que el backup de Android podría incluir ambas
 - wdk-utils — mitigates → Fuga de seed por almacenamiento inseguro because cifra la seed con una passphrase antes de persistirla
 
 ## Gasless requiere paymaster configurado
@@ -150,7 +152,11 @@ copy lives in the origin note, this is only the reverse lookup.
 ## backup-cloud no cifra, la app cifra antes
 - wdk-backup-cloud — requires → backup-cloud no cifra, la app cifra antes because sube el string tal cual, sin cifrar ni validar nada
 
+## bridge-usdt0-evm
+- wdk-protocol-bridge-usdt0-solana — contrasts with → bridge-usdt0-evm because cubriría el sentido inverso, con origen en cuentas Solana, mientras el módulo EVM parte de cuentas EVM
+
 ## pear-wrk-wdk
+- wdk-core-kotlin — depends on → pear-wrk-wdk because esa capa es el runtime del worklet y atiende los mensajes JSON-RPC de `WdkCore`
 - wdk-react-native-core — depends on → pear-wrk-wdk because el worklet Bare que aloja al WDK usa esa capa de transporte
 - wdk-worklet-bundler — depends on → pear-wrk-wdk because los puntos de entrada que genera importan esa capa
 
@@ -165,6 +171,8 @@ copy lives in the origin note, this is only the reverse lookup.
 
 ## wdk
 - pear-wrk-wdk — depends on → wdk because inicializa el WDK dentro del worklet con la seed cifrada que recibe
+- wdk-core-kotlin — depends on → wdk because el `package.json` de su carpeta `js/` declara `@tetherto/wdk` como dependencia del worklet
+- wdk-core-swift — depends on → wdk because su API (`initializeWDK`, `callMethod`) opera sobre el WDK de JavaScript que corre dentro del worklet
 
 ## wdk-app-node
 - Afinidad usuario-ork por CRC32 — is part of → wdk-app-node because el cálculo vive en `resolveOrkRpcKey` de su servicio `ork.js`
@@ -173,8 +181,18 @@ copy lives in the origin note, this is only the reverse lookup.
 - Indexer API — opens a question about → wdk-app-node because ambos exponen `/api/v1/health` y `/api/v1/chains`, pero `app-node` usa JWT y rutas propias de billetera, y la doc no aclara si el servicio hospedado es una instancia de ese gateway
 - wdk-qualification-exercise — depends on → wdk-app-node because la app móvil registra billeteras y consulta historial contra su REST, y el backend le emite los JWT
 
+## wdk-backup-cloud-react-native
+- wdk-backup-cloud — supersedes → wdk-backup-cloud-react-native because la guía de migración lo presenta como reemplazo del paquete legado, con CloudKit en lugar de iCloud Drive y migración por usuario en el cliente
+- wdk-qualification-exercise — depends on → wdk-backup-cloud-react-native because la app declara el paquete legado `@tetherto/wdk-backup-cloud-react-native`, que la guía de migración de la documentación reemplaza por `@tetherto/wdk-backup-cloud`
+
 ## wdk-cli
 - wdk-mcp-toolkit — contrasts with → wdk-cli because la doc ofrece el CLI como alternativa lista para usar cuando no hace falta construir un servidor MCP propio
+
+## wdk-core-kotlin
+- wdk-starter-kotlin — depends on → wdk-core-kotlin because la referencia como módulo Gradle local, según su README
+
+## wdk-core-swift
+- wdk-starter-swift — depends on → wdk-core-swift because es el paquete Swift que integra, según su README
 
 ## wdk-data-shard-wrk
 - Capability del handshake ork debe coincidir — constrains → wdk-data-shard-wrk because exige el mismo valor para aceptar llamadas del ork y para hablar con su `proc`
@@ -215,11 +233,15 @@ copy lives in the origin note, this is only the reverse lookup.
 - pricing-coingecko-http — depends on → wdk-pricing-provider because su clase extiende el `PricingClient` base que ese paquete define
 
 ## wdk-react-native-core
+- wdk-core-kotlin — contrasts with → wdk-react-native-core because es el camino de integración móvil sin React Native, con la misma arquitectura de worklet Bare
+- wdk-core-swift — contrasts with → wdk-react-native-core because es el camino de integración móvil sin React Native, con la misma arquitectura de worklet Bare
 - wdk-qualification-exercise — depends on → wdk-react-native-core because la app lo declara en su `package.json`
+- wdk-starter-react-native — depends on → wdk-react-native-core because su `package.json` lo declara como dependencia
 - wdk-uikit-react-native — contrasts with → wdk-react-native-core because el kit es presentación sin lógica y la librería core es estado y operaciones de wallet
 
 ## wdk-react-native-secure-storage
 - wdk-react-native-core — contrasts with → wdk-react-native-secure-storage because incluye su propio storage con identificadores explícitos y autenticación a cargo de la app, a diferencia del paquete standalone
+- wdk-signer-local — resembles → wdk-react-native-secure-storage because también deja el material de la wallet en el keychain del dispositivo, aunque este addon además deriva claves y firma
 
 ## wdk-secret-manager
 - wdk-utils — contrasts with → wdk-secret-manager because ambos cifran seeds con una passphrase, con esquemas distintos (AES-GCM con scrypt frente a secretbox con PBKDF2)
@@ -305,4 +327,6 @@ copy lives in the origin note, this is only the reverse lookup.
 - wdk-indexer-wrk-tron — depends on → wdk-wallet-tron-gasfree because el constructor del cliente lo importa y lo instancia con `gasFreeConfig`; en el lockfile arrastra también a `wdk-wallet-tron`
 
 ## wdk-worklet-bundler
+- wdk-core-kotlin — requires → wdk-worklet-bundler because el build de Gradle lo invoca para producir el bundle y enlazar los addons nativos
+- wdk-core-swift — requires → wdk-worklet-bundler because el worklet y los addons nativos se generan con ese CLI y el README no ofrece otra vía soportada
 - wdk-react-native-core — requires → wdk-worklet-bundler because necesita el bundle del worklet que genera el bundler

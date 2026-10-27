@@ -9,6 +9,7 @@ source:
   - wdk-qualification-exercise/apps/backend/README.md
   - wdk-qualification-exercise/apps/backend/package.json
   - wdk-qualification-exercise/apps/rn-wdk-exercise/package.json
+  - wdk-docs/content/docs/tools/backup-cloud/guides/migrate-from-react-native.mdx
 ---
 # wdk-qualification-exercise
 
@@ -23,6 +24,7 @@ Caso de SpaceUY que consume el stack: una app React Native (Expo) con billetera 
 - depends on → [[wdk-wallet-btc]] because la app lo declara en su `package.json`
 - depends on → [[wdk-wallet-spark]] because la app lo declara en su `package.json`
 - depends on → [[wdk-wallet-tron]] because la app lo declara en su `package.json`
+- depends on → [[wdk-backup-cloud-react-native]] because la app declara el paquete legado `@tetherto/wdk-backup-cloud-react-native`, que la guía de migración de la documentación reemplaza por `@tetherto/wdk-backup-cloud`
 
 ## Associative
 - contrasts with → [[Indexer API]] because el backend conserva `INDEXER_TRANSPORT=hosted-api`, marcado como deprecado, para volver a ella en lugar de usar el stack autoalojado

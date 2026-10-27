@@ -4,6 +4,8 @@ status: shipped
 source:
   - wdk-docs/content/docs/ai/agent-skills.mdx
   - wdk-docs/content/docs/ai/openclaw.mdx
+  - wdk-docs/content/docs/start-building/build-with-ai.mdx
+  - https://github.com/tetherto/wdk-agent-skills
 ---
 # Agent Skills WDK
 

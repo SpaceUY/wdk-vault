@@ -7,6 +7,9 @@ source:
   - wdk-docs/content/docs/ai/mcp-toolkit/index.mdx
   - wdk-docs/content/docs/ai/agent-skills.mdx
   - wdk-docs/content/docs/cli/index.mdx
+  - wdk-docs/content/docs/examples-and-starters/react-native-starter.mdx
+  - https://github.com/tetherto/wdk-core-swift
+  - https://github.com/tetherto/wdk-core-kotlin
   - wdk-docs/content/docs/ui-kits/react-native-ui-kit/index.mdx
 ---
 # MOC Catálogo WDK
@@ -43,6 +46,7 @@ Catálogo de todo módulo del WDK que la documentación describe, agrupado por �
 ## Protocolos de swap y bridge
 - [[swap-velora-evm]]: swaps EVM por Velora
 - [[bridge-usdt0-evm]]: bridge de USD₮0 y XAU₮0 por LayerZero
+- [[wdk-protocol-bridge-usdt0-solana]]: bridge de USD₮0 desde Solana, anunciado: solo existe el repo con un README, sin módulo publicado
 - [[swidge-0x]]: swaps en una cadena por 0x
 - [[swidge-butter]]: rutas por Butter Network
 - [[swidge-lifi]]: swap, bridge y rutas combinadas por LI.FI
@@ -71,6 +75,7 @@ Catálogo de todo módulo del WDK que la documentación describe, agrupado por �
 - [[wdk-asset-registry]]: metadatos estandarizados de activos
 - [[wdk-p2p-address-book]]: contactos cifrados entre dispositivos
 - [[wdk-backup-cloud]]: respaldo de la clave maestra en la nube
+- [[wdk-backup-cloud-react-native]]: paquete anterior de respaldo para React Native, superado por `wdk-backup-cloud`
 - [[wdk-react-native-core]]: hooks de wallet para React Native
 - [[wdk-react-native-secure-storage]]: keychain para seed cifrada
 - [[wdk-worklet-bundler]]: bundles Bare para workers
@@ -83,6 +88,15 @@ Catálogo de todo módulo del WDK que la documentación describe, agrupado por �
 - [[x402]]: pagos HTTP con USD₮0
 - [[wdk-wallet-evm-x402-facilitator]]: facilitator x402 autoalojado, comunitario
 - [[wdk-cli]]: CLI local, daemon y servidor MCP
+
+## Móvil nativo y ejemplos
+- [[wdk-core-swift]]: núcleo Swift para iOS y macOS, sin documentar en la doc del WDK
+- [[wdk-core-kotlin]]: núcleo Kotlin para Android, sin documentar en la doc del WDK
+- [[wdk-starter-swift]]: app iOS de ejemplo sobre `wdk-core-swift`
+- [[wdk-starter-kotlin]]: app Android de ejemplo sobre `wdk-core-kotlin`
+- [[wdk-starter-react-native]]: wallet de referencia en React Native, en alfa
+- [[wdk-examples]]: ejemplos ejecutables por módulo
+- [[wdk-signer-local]]: addon Bare con almacenamiento nativo de claves y firma HD
 
 ## UI
 - [[wdk-uikit-react-native]]: componentes React Native para wallets
@@ -112,5 +126,13 @@ Catálogo de todo módulo del WDK que la documentación describe, agrupado por �
 - [[MOC Backend e indexado]]
 - [[MOC Versiones]]
 
+## Repos públicos de tetherto sin documentación (revisado el 2026-10-27)
+Estos repos de la organización `tetherto` no figuran en `wdk-docs` y no tienen nota; se listan solo como referencia, sin enlaces.
+- `wdk-policies`: repo con un README que contiene solo el título
+- `wdk-doctor-app`: repo con un README que contiene solo el título
+- `wdk-backup-remote` (archivado): repo con un README que contiene solo el título
+- `wdk-safe-core-sdk` (archivado): fork del Safe{Core} SDK; sus paquetes `wdk-safe-*` aparecen en el lockfile de `wdk-indexer-wrk-evm`
+- `tether-wrk-ork-base`: base de workers publicada en npm (1.0.1 al 2026-10-27; `_meta/versions.md` no la sigue); ninguno de los repos SpaceUY la usa como dependencia
+
 ## No modelado
-Los paquetes `@tetherto/wdk-core` y `@tetherto/wdk-core-react-native` solo aparecen en entradas históricas del changelog y no tienen nota. Tampoco `@tetherto/wdk-backup-cloud-react-native` (se cita solo en una guía de migración), los kits `@tetherto/wdk-safe-protocol-kit` y `@tetherto/wdk-safe-relay-kit`, los paquetes `@tetherto/docs-seo-*` ni las dependencias internas del backend (`hp-svc-facs-*`, `svc-facs-*`, `tether-wrk-base`), que figuran en `_meta/versions.md` pero no son módulos documentados del SDK. La página de OpenClaw se cubre dentro de [[Agent Skills WDK]]. No se modelan las guías por módulo ni la referencia de API, y el contenido del CLI más allá de su página de entrada (comandos, seguridad y formato de almacenamiento) queda sin detalle.
+De los 158 repos públicos de la organización `tetherto`, 70 se relacionan con el WDK; los otros 88 (miningos, pearpass, qvac y similares) no se modelaron deliberadamente. Los paquetes `@tetherto/wdk-core` y `@tetherto/wdk-core-react-native` solo aparecen en entradas históricas del changelog y no tienen nota. Tampoco los kits `@tetherto/wdk-safe-protocol-kit` y `@tetherto/wdk-safe-relay-kit`, los paquetes `@tetherto/docs-seo-*` ni las dependencias internas del backend (`hp-svc-facs-*`, `svc-facs-*`, `tether-wrk-base`), que figuran en `_meta/versions.md` pero no son módulos documentados del SDK. La página de OpenClaw se cubre dentro de [[Agent Skills WDK]]. No se modelan las guías por módulo ni la referencia de API, y el contenido del CLI más allá de su página de entrada (comandos, seguridad y formato de almacenamiento) queda sin detalle.

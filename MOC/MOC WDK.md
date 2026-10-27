@@ -3,6 +3,7 @@ type: moc
 status: shipped
 source:
   - wdk-docs/content/docs/index.mdx
+  - wdk-docs/content/docs/overview/partner-program.mdx
   - wdk-vault/_meta/versions.py
 ---
 # MOC WDK
@@ -33,6 +34,9 @@ Mapa raíz del vault sobre el WDK de Tether. Para la orientación del dominio, e
 - [[Agregadores de swap y bridge directos]]
 - [[On-ramp integrado a mano]]
 - [[Feeds de precio de terceros]]
+
+## Programa de partners
+- [[Programa de partners WDK]]
 
 ## Convenciones del vault
 - [[CLAUDE]]

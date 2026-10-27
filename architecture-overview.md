@@ -18,6 +18,8 @@ flowchart TD
     CORE --> PROTO[Módulos de protocolo]
     APP --> RN[Herramientas React Native]
     RN --> CORE
+    APP --> NATIVE[Núcleos nativos Swift y Kotlin]
+    NATIVE --> CORE
     APP --> GW[wdk-app-node]
     GW --> ORK[wdk-ork-wrk]
     ORK --> SHARD[wdk-data-shard-wrk]
@@ -28,6 +30,7 @@ flowchart TD
 ```
 
 - **Núcleo y wallets por cadena**: [[wdk]] orquesta, [[wdk-wallet]] define las interfaces base y cada cadena tiene su módulo (por ejemplo [[wdk-wallet-evm]] y [[wdk-wallet-tron]]). Mapa: [[MOC Billetera self-custodial]].
+- **Móvil nativo**: [[wdk-core-swift]] y [[wdk-core-kotlin]] alojan el mismo worklet Bare que usa [[wdk-react-native-core]], con APIs nativas de Swift y Kotlin, y cada uno tiene su app de ejemplo ([[wdk-starter-swift]] y [[wdk-starter-kotlin]]). La documentación del WDK todavía no los cubre y no se instalan desde npm, por eso son `draft`.
 - **Gasless**: variantes por cadena que permiten transferir sin el token nativo, todas con un tercero que cubre el fee ([[Gasless requiere paymaster configurado]]). Mapa: [[MOC Gasless]].
 - **Protocolos**: swap, bridge, swidge, fiat, lending, depósitos y precios, que operan sobre una cuenta de wallet. Mapa: [[MOC Protocolos]].
 - **Backend e indexado**: la solicitud va de [[wdk-app-node]] a [[wdk-ork-wrk]] y a [[wdk-data-shard-wrk]], que consulta a los indexers; [[wdk-indexer-processor-wrk]] enruta las transferencias a cada shard. La alternativa hospedada es la [[Indexer API]]. Mapa: [[MOC Backend e indexado]].
@@ -65,10 +68,10 @@ Las demás espinas no nacen de una decisión modelada sino de restricciones de l
 Esta sección se calcula con el `status` real del frontmatter, no de memoria. Comando, desde la raíz del vault:
 
 ```sh
-grep -rlE '^status: (proposed|draft|built-off-by-default)' --include='*.md' concepts constraints failures decisions systems services MOC
+grep -rlE '^status: (proposed|draft|built-off-by-default|todo|superseded)' --include='*.md' concepts constraints failures decisions systems services MOC
 ```
 
-Al 2026-10-26 el resultado es de 6 notas, todas `draft`; no hay ninguna `proposed` ni `built-off-by-default` (tampoco `todo` ni `superseded`). `draft` marca un módulo que no se instala desde npm o cuya madurez no está clara, no algo inexistente. Ninguna de estas notas debe citarse como capacidad lista para producción:
+Al 2026-10-27 el resultado es de 14 notas: 12 `draft`, una `proposed` y una `superseded`; no hay ninguna `built-off-by-default` ni `todo`. `draft` marca un módulo que no se instala desde npm o cuya madurez no está clara, no algo inexistente; `proposed` marca algo que todavía no existe, y `superseded`, un paquete que otro reemplazó. Ninguna de estas notas debe citarse como capacidad lista para producción:
 
 - [[wdk-wallet-cosmos]]: cadenas Cosmos.
 - [[wdk-wallet-rgb]]: activos RGB sobre Bitcoin.
@@ -76,6 +79,14 @@ Al 2026-10-26 el resultado es de 6 notas, todas `draft`; no hay ninguna `propose
 - [[wdk-wallet-evm-bermuda]]: cuentas blindadas de Bermuda en EVM.
 - [[wdk-wallet-evm-x402-facilitator]]: facilitator x402 autoalojado.
 - [[wdk-mcp-toolkit]]: servidores MCP con wallets del WDK; la versión documentada no está publicada en npm.
+- [[wdk-core-swift]]: núcleo Swift para iOS y macOS; no está en la documentación ni en npm.
+- [[wdk-core-kotlin]]: núcleo Kotlin para Android; no está en la documentación ni en npm.
+- [[wdk-starter-swift]]: app iOS de ejemplo sobre `wdk-core-swift`.
+- [[wdk-starter-kotlin]]: app Android de ejemplo sobre `wdk-core-kotlin`; guarda la clave de cifrado junto a la seed cifrada.
+- [[wdk-examples]]: ejemplos ejecutables; el paquete de npm es un placeholder.
+- [[wdk-signer-local]]: addon Bare con almacenamiento nativo de claves; en npm solo hay un placeholder.
+- [[wdk-protocol-bridge-usdt0-solana]]: `proposed`: bridge de USD₮0 desde Solana, anunciado pero sin código; no existe todavía.
+- [[wdk-backup-cloud-react-native]]: `superseded`: paquete anterior de respaldo en la nube, reemplazado por `wdk-backup-cloud`.
 
 Si el comando devuelve notas nuevas o distintas, esta lista quedó vieja y hay que actualizarla.
 
