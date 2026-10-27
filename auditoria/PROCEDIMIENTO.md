@@ -9,6 +9,8 @@ Reglas que valen en todos los pasos:
 - Las columnas «mi versión» de `_meta/versions.md` describen los repos de SpaceUY, no el proyecto del cliente. La versión instalada del cliente sale de su propio lockfile (paso 1).
 - Antes de empezar, mirar `analyzed_on` en `_meta/last-sync.md`. Si el vault está viejo, actualizarlo antes de auditar (skill `updating-typed-knowledge-vaults`).
 
+Los comandos usan sintaxis POSIX (`detect_pattern() {…}`, `$(…)`, bucles `for … do`): correr en bash o zsh (no en fish).
+
 Variables usadas abajo (ajustar la ruta):
 
 ```sh
@@ -23,7 +25,7 @@ Desde la raíz del proyecto auditado.
 **1a. Dependencias declaradas y resueltas.** Lista las dependencias de cada `package.json` (incluye monorepos) y los lockfiles presentes:
 
 ```sh
-find . -name package.json -not -path '*/node_modules/*' -exec sh -c 'echo "== $1"; jq -r "((.dependencies // {}) + (.devDependencies // {})) | to_entries[] | \"\(.key)@\(.value)\"" "$1"' _ {} \;
+find . -name package.json -not -path '*/node_modules/*' -exec sh -c 'echo "== $1"; jq -r "((.dependencies // null) + (.devDependencies // null)) | select(. != null) | to_entries[] | \"\(.key)@\(.value)\"" "$1"' _ {} \;
 ls pnpm-lock.yaml package-lock.json yarn.lock bun.lockb 2>/dev/null
 ```
 
@@ -32,6 +34,8 @@ Versiones resueltas de los paquetes WDK, si ya usa alguno (sirven en el paso 3):
 ```sh
 grep -n '@tetherto/' pnpm-lock.yaml package-lock.json yarn.lock 2>/dev/null | head -50
 ```
+
+Nota: el filtro de `jq` evita `{}` a propósito, porque `find` lo sustituye por la ruta del archivo dentro del filtro y `jq` falla.
 
 **1b. Construir el patrón de cada servicio a partir de su `detect:`.** Cada nota de `$VAULT/services/` tiene un bloque `detect:` con paquetes npm o dominios. Este one-liner lo lee, quita las comillas YAML, escapa los puntos y une las entradas con `|`:
 
@@ -69,7 +73,9 @@ Agregar `--exclude-dir=dist --exclude-dir=build --exclude-dir=.next` si el proye
 
 Lo contrario también vale: **no encontrar nada no prueba que el servicio no se use** (clientes HTTP con otro dominio, URLs en variables de entorno o en infra, un backend en otro repositorio). Revisar también `.env.example`, la configuración de despliegue y preguntar al cliente por los servicios que contrata.
 
-Salida del paso: lista de servicios confirmados, cada uno con su evidencia `archivo:línea`.
+**1d. Qué usa el proyecto del servicio.** Por cada servicio confirmado, listar qué APIs o funciones usa realmente (por ejemplo, de Alchemy: solo saldos e historial, o también NFT, webhooks o APIs enriquecidas). Cada función sin equivalente en los módulos del paso 2 se registra como fila aparte con veredicto `Sin equivalente WDK`; no se descarta.
+
+Salida del paso: lista de servicios confirmados, cada uno con su evidencia `archivo:línea` y las funciones que usa.
 
 ## Paso 2. Candidatos WDK por servicio
 
@@ -101,9 +107,16 @@ Por cada candidato:
    grep -F '| @tetherto/wdk-wallet-evm-erc-4337 |' "$VAULT/_meta/versions.md"
    ```
 
-   Madurez: una versión con `-beta.N` es beta, con `-rc.N` es release candidate, sin sufijo es estable. Una nota con `status: draft` (módulo comunitario) tiene madurez no verificada. Tomar la versión instalada del cliente del lockfile (paso 1a) y compararla con la documentada y la `latest`.
+   Ese comando devuelve también filas de las tablas por repo, que describen solo los repos de SpaceUY: ignorarlas. Para el proyecto auditado, «mi versión» es la del lockfile del cliente (paso 1a), y se compara con la fila del catálogo (sección «Catálogo: todos los paquetes documentados»): la de 4 columnas, sin repo, con paquete, versión documentada, `latest` de npm y quién lo usa.
 
-3. **Capacidades de las que depende la migración.** Para cada capacidad concreta que el cliente necesita (por ejemplo, «pasar un `Provider` de ethers existente a `WalletManagerEvm`»), correr el procedimiento «¿Puedo hacer X con mi versión?» de `CLAUDE.md`, con la versión del cliente. La regla es la de ese procedimiento: nunca afirmar que algo funciona en una versión solo porque la doc lo describe. Si el rango entre la versión instalada y la documentada tiene cambios (`[Breaking]` incluidos, listados en `_meta/versions.md`), se verifica la API clonando el tag de esa versión en un directorio temporal, sin instalar dependencias en el proyecto.
+   Madurez: una versión con `-beta.N` es beta, con `-rc.N` es release candidate, sin sufijo es estable. Una nota con `status: draft` (módulo comunitario) tiene madurez no verificada. Comparar la versión del lockfile del cliente con la documentada y la `latest` de la fila del catálogo.
+
+3. **Capacidades de las que depende la migración.** Para cada capacidad concreta que el cliente necesita (por ejemplo, «pasar un `Provider` de ethers existente a `WalletManagerEvm`»), correr el procedimiento «¿Puedo hacer X con mi versión?» de `CLAUDE.md`, con la versión del cliente. La regla es la de ese procedimiento: nunca afirmar que algo funciona en una versión solo porque la doc lo describe. Si el rango entre la versión instalada y la documentada tiene cambios (`[Breaking]` incluidos, listados en `_meta/versions.md`), se verifica la API clonando el tag de esa versión en un directorio temporal, sin instalar dependencias en el proyecto. Ese procedimiento también cubre los cambios entre la versión documentada y la `latest` de npm: `_meta/versions.md` lista entradas del changelog solo hasta la documentada, así que para lo posterior hay que leer las releases de GitHub del paquete.
+
+4. **Chequeos específicos del tipo de servicio.**
+   - Custodia de claves ([[Custodia tercerizada (MPC)]], [[Wallets embebidas WaaS]]): cómo migran las claves de los usuarios existentes (exportar e importar) es una pregunta abierta que se resuelve con el proveedor. Sin esa respuesta el veredicto no puede ser mejor que `Reemplazable con condiciones`. Ver también [[Seed derivada en el dispositivo]].
+   - Indexado ([[Indexadores y nodos de terceros]]): confirmar cadenas y tokens contra `GET /api/v1/chains` de la [[Indexer API]], o contra los indexers autoalojados (`wdk-indexer-wrk-*`), antes de dar el veredicto.
+   - Toda función detectada en 1d sin equivalente: `Sin equivalente WDK`.
 
 Salida del paso: por candidato, la lista de condiciones, riesgos, versión del cliente frente a la documentada y a npm, y madurez.
 

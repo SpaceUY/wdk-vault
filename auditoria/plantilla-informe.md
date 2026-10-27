@@ -36,3 +36,12 @@ Una entrada por cada fila `No reemplazable hoy` o `Sin equivalente WDK`:
 
 1. <Paso: qué se migra, de qué depende, esfuerzo>. Condición de salida: <qué se verifica antes de seguir>.
 2. <Paso>. Condición de salida: <...>.
+
+## Preguntas abiertas
+
+Todo lo que quedó sin resolver y limita un veredicto:
+
+- **Funciones del servicio en uso:** <funciones que el proyecto usa y no tienen equivalente WDK; deben figurar en la tabla como `Sin equivalente WDK`>.
+- **Migración de claves de usuarios existentes:** <para servicios de custodia (Privy, MPC): cómo se exportan e importan las claves; pregunta abierta con el proveedor; sin respuesta el veredicto no supera `Reemplazable con condiciones`>.
+- **Cobertura de cadenas y tokens:** <para indexado: resultado contra `GET /api/v1/chains` de la Indexer API o contra los indexers autoalojados>.
+- **Cambios posteriores a la versión documentada:** <releases de GitHub del paquete entre la versión documentada y la `latest` de npm que toquen la capacidad>.
