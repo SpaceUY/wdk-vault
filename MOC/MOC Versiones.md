@@ -15,5 +15,7 @@ Fallas que la regla evita:
 
 Los números concretos viven en `_meta/versions.md` (versión instalada, documentada y `latest` de npm por paquete y repo) y el commit analizado de cada fuente, en `_meta/last-sync.md`. Ambos se regeneran con el procedimiento «Mantenimiento» de `CLAUDE.md`, que nombra en `--checkpoint` solo los repos sincronizados.
 
+La última versión indexada de la documentación queda en `_meta/indexado.json`, y lo que cambió desde entonces, en `_meta/cambios.md` (`python3 _meta/versions.py --cambios`).
+
 ## No modelado
 Las notas de este MOC no registran el historial completo del changelog ni las versiones de dependencias transitivas. Tampoco se sabe qué publicó Tether después de la última release integrada en SpaceUY, porque sus repos son privados.

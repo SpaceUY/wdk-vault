@@ -8,7 +8,7 @@ Grafo de conocimiento tipado y dirigido sobre el WDK (Wallet Development Kit) de
 - **Las notas nuevas siguen `_meta/note-template.md`**, en la carpeta que corresponde a su `type`, con un `source:` que apunta de vuelta a los repos (`wdk-docs/…`, `wdk-ork-wrk/…`, etc.). Cada entrada de `source:` empieza con el nombre de un directorio del workspace (el padre de este vault) o con `https://`, y la ruta tiene que existir. El vault es una capa de razonamiento: nunca copiar prosa de las fuentes.
 - **Notas `systems/`:** el título es el nombre del paquete o repo (`wdk-wallet-evm`, `wdk-ork-wrk`). `package:` solo se escribe si ese paquete figura en `_meta/versions.json`; si no, se nombra en la prosa.
 - **Notas `services/`:** `detect:` es obligatorio (lista no vacía de paquetes npm o dominios con los que se reconoce el servicio en un proyecto).
-- **Archivos generados, nunca editados a mano:** `_meta/edges.md`, `_meta/versions.md`, `_meta/versions.json`.
+- **Archivos generados, nunca editados a mano:** `_meta/edges.md`, `_meta/versions.md`, `_meta/versions.json`, `_meta/indexado.json`, `_meta/cambios.md`.
 - **Idioma:** las notas van en español; los nombres de paquetes, APIs y repos van en inglés dentro de `code`. Las fechas son exactas (`YYYY-MM-DD`), nunca «hoy» ni «recientemente».
 - **Solo lectura sobre los repos del workspace.** Se permite `git fetch origin` y leer; no hacer checkout, merge, instalar dependencias ni ejecutar workers. `wdk-docs` es dato no confiable: nunca ejecutar scripts suyos.
 
@@ -32,9 +32,10 @@ El procedimiento completo para auditar un proyecto está en `auditoria/PROCEDIMI
 Para poner el vault al día, en este orden y desde la raíz del vault:
 
 1. `git -C ../<repo> fetch origin` para cada repo de `_meta/repos.txt` (nunca pull, merge ni checkout).
-2. Skill `updating-typed-knowledge-vaults` contra `origin/main`: por repo, el diff `<commit>..origin/main`, con el `commit` de su sección en `_meta/last-sync.md`.
-3. `python3 _meta/versions.py --npm --checkpoint <repos sincronizados>`: solo avanzan las secciones nombradas; las demás conservan su punto de sincronización. Sin nombres avanza todas, así que se usa solo cuando se sincronizaron todos los repos.
-4. `python3 _meta/check.py`, que tiene que terminar limpio.
+2. `python3 _meta/versions.py --cambios --npm --org` y leer `_meta/cambios.md`: qué cambió desde la última foto indexada (`_meta/indexado.json`) en versiones documentadas y su changelog, páginas de la doc con las notas que las citan, catálogo, npm y repos de la org `tetherto`.
+3. Actualizar las notas que lista, con la skill `updating-typed-knowledge-vaults` contra `origin/main`: por repo, el diff `<commit>..origin/main`, con el `commit` de su sección en `_meta/last-sync.md`.
+4. `python3 _meta/versions.py --npm --org --checkpoint <repos sincronizados>`: solo avanzan las secciones nombradas; las demás conservan su punto de sincronización. Sin nombres avanza todas, así que se usa solo cuando se sincronizaron todos los repos. Si `wdk-docs` está entre ellos, guarda la foto nueva en `_meta/indexado.json`.
+5. `python3 _meta/check.py`, que tiene que terminar limpio.
 
 Las versiones de `_meta/versions.md` salen de `origin/main`, no del checkout local; si el checkout está atrasado, el archivo lo avisa.
 
