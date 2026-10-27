@@ -1,6 +1,7 @@
 ---
 type: system
 status: shipped
+package: '@tetherto/wdk-indexer-wrk-base'
 source:
   - wdk-indexer-wrk-base/CLAUDE.md
   - wdk-indexer-wrk-base/README.md

@@ -1,6 +1,7 @@
 ---
 type: system
 status: draft
+package: '@base58-io/wdk-wallet-cosmos'
 source:
   - wdk-docs/content/docs/sdk/community-modules/wdk-wallet-cosmos/index.mdx
 ---

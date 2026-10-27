@@ -1,6 +1,7 @@
 ---
 type: system
 status: shipped
+package: '@tetherto/wdk-uikit-react-native'
 source:
   - wdk-docs/content/docs/ui-kits/react-native-ui-kit/index.mdx
   - wdk-docs/content/docs/ui-kits/react-native-ui-kit/get-started.mdx

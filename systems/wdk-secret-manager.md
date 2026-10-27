@@ -1,6 +1,7 @@
 ---
 type: system
 status: shipped
+package: '@tetherto/wdk-secret-manager'
 source:
   - wdk-docs/content/docs/tools/secret-manager/index.mdx
   - wdk-docs/content/docs/tools/secret-manager/configuration.mdx

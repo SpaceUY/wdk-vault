@@ -1,6 +1,7 @@
 ---
 type: system
 status: draft
+package: '@bermuda/wdk-wallet-evm-bermuda'
 source:
   - wdk-docs/content/docs/sdk/wallet-modules/wallet-evm-bermuda/index.mdx
   - wdk-docs/content/docs/sdk/wallet-modules/index.mdx

@@ -1,6 +1,7 @@
 ---
 type: system
 status: draft
+package: '@utexo/wdk-wallet-rgb'
 source:
   - wdk-docs/content/docs/sdk/community-modules/wdk-wallet-rgb/index.mdx
 ---

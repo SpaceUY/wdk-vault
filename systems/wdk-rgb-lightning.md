@@ -1,7 +1,7 @@
 ---
 type: system
 status: draft
-package: 'github:UTEXO-Protocol/wdk-rgb-lightning'
+package: '@utexo/wdk-rgb-lightning'
 source:
   - wdk-docs/content/docs/sdk/community-modules/wdk-rgb-lightning/index.mdx
 ---
