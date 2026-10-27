@@ -6,6 +6,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+import urllib.error
 from unittest import mock
 from pathlib import Path
 
@@ -646,6 +647,40 @@ class SiteFetchTest(unittest.TestCase):
         self.assertTrue(request.get_header("User-agent"))
 
 
+class OrgFetchTest(unittest.TestCase):
+    def page(self, items: list) -> mock.MagicMock:
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = json.dumps(items).encode()
+        return response
+
+    def test_fetch_org_repos_paginates_and_filters(self) -> None:
+        page1 = [
+            {"name": "wdk-wallet-evm", "pushed_at": "2026-10-20T10:00:00Z", "archived": False},
+            {"name": "Pear-Wrk-Wdk", "pushed_at": "2026-09-01T00:00:00Z", "archived": False},
+            {"name": "hyperswarm-thing", "pushed_at": "2026-10-01T00:00:00Z", "archived": False},
+        ]
+        page2 = [{"name": "tether-wrk-base", "pushed_at": "2025-01-02T00:00:00Z", "archived": True}]
+        pages = [self.page(page1), self.page(page2), self.page([])]
+        with mock.patch.object(versions.urllib.request, "urlopen", side_effect=pages) as opened:
+            found = versions._fetch_org_repos()
+        self.assertEqual(found, {
+            "Pear-Wrk-Wdk": {"pushed_at": "2026-09-01", "archived": False},
+            "tether-wrk-base": {"pushed_at": "2025-01-02", "archived": True},
+            "wdk-wallet-evm": {"pushed_at": "2026-10-20", "archived": False},
+        })
+        requests = [c.args[0] for c in opened.call_args_list]
+        self.assertEqual([r.full_url for r in requests],
+                         [f"https://api.github.com/orgs/tetherto/repos?per_page=100&page={n}" for n in (1, 2, 3)])
+        self.assertTrue(all(r.get_header("User-agent") for r in requests))
+
+    def test_fetch_org_repos_network_error_warns_and_returns_none(self) -> None:
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), \
+                mock.patch.object(versions.urllib.request, "urlopen", side_effect=urllib.error.URLError("down")):
+            self.assertIsNone(versions._fetch_org_repos())
+        self.assertIn("warning:", err.getvalue())
+
+
 class NpmTest(unittest.TestCase):
     def run_npm(self, returncode: int, stdout: str = "", stderr: str = "") -> str:
         done = subprocess.CompletedProcess([], returncode, stdout, stderr)
@@ -668,14 +703,18 @@ class MainTest(unittest.TestCase):
         self.vault = self.workspace / "wdk-vault"
         (self.vault / "_meta").mkdir(parents=True)
 
-    def run_main(self, argv: list[str], npm: dict | None = None) -> tuple[int, str]:
+    def run_main(self, argv: list[str], npm: dict | None = None, org: dict | None = None) -> tuple[int, str]:
+        """`org` es lo que devuelve la API de GitHub; None simula un error de red."""
         err = io.StringIO()
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err), \
                 mock.patch.object(versions, "_site_changelog_top", return_value="2026-10-06"), \
+                mock.patch.object(versions, "_fetch_org_repos", return_value=org) as org_fetch, \
                 mock.patch.object(versions, "_fetch_npm_latest", return_value=npm or {}) as fetch:
             code = versions.main(argv, self.vault)
         if "--npm" not in argv:
             fetch.assert_not_called()
+        if "--org" not in argv:
+            org_fetch.assert_not_called()
         return code, err.getvalue()
 
     def make_docs(self) -> Path:
@@ -724,6 +763,190 @@ class MainTest(unittest.TestCase):
         self.assertNotIn(f"commit: {versions._git(b, 'rev-parse', 'HEAD')}", new_b.splitlines())
         self.assertIn("deployed_release: v9.9.9", new_b)
         self.assertIn("1999-01-01", self.section("wdk-docs"))
+
+    def snapshot(self) -> dict:
+        return json.loads(self.read("indexado.json"))
+
+    def catalog_packages(self) -> set[str]:
+        catalog = self.read("versions.md").split("## Catálogo", 1)[1].split("\n## ", 1)[0]
+        rows = [line for line in catalog.splitlines() if line.startswith("| ") and not line.startswith("| paquete")]
+        return {row.split(" | ")[0][2:] for row in rows}
+
+    def bootstrap(self, argv: list[str] = (), npm: dict | None = None, org: dict | None = None) -> Path:
+        make_repo(self.workspace, "wdk-a", ["init"])
+        docs = self.make_docs()
+        self.write_repos_txt("wdk-a\nwdk-docs docs-only\n")
+        self.assertEqual(self.run_main([*argv, "--checkpoint"], npm, org)[0], 0)
+        return docs
+
+    def test_checkpoint_writes_indexado_snapshot(self) -> None:
+        docs = self.bootstrap(["--npm"], {"@tetherto/wdk-wallet-evm": "1.0.0-beta.24"})
+        snap = self.snapshot()
+        self.assertEqual(sorted(snap), ["indexed_on", "org_repos", "packages", "wdk_docs"])
+        self.assertEqual(snap["indexed_on"], versions.date.today().isoformat())
+        self.assertEqual(snap["wdk_docs"], {"ref": "main (sin origin)",
+                                            "commit": versions._git(docs, "rev-parse", "HEAD"),
+                                            "date": versions._commit_date(docs, "HEAD")})
+        self.assertEqual(set(snap["packages"]), self.catalog_packages())
+        self.assertEqual(snap["packages"]["@tetherto/wdk-wallet-evm"], {
+            "documented": "1.0.0-beta.20",
+            "source": "callout:content/docs/sdk/wallet-modules/wallet-evm/index.mdx",
+            "npm": "1.0.0-beta.24"})
+        self.assertEqual(snap["packages"]["@tetherto/wdk-wallet"]["npm"], "")
+        self.assertEqual(snap["org_repos"], {})
+
+    def test_checkpoint_without_wdk_docs_keeps_snapshot(self) -> None:
+        self.bootstrap()
+        (self.vault / "_meta" / "indexado.json").write_text('{"sentinel": 1}', encoding="utf-8")
+        self.assertEqual(self.run_main(["--checkpoint", "wdk-a"])[0], 0)
+        self.assertEqual(self.snapshot(), {"sentinel": 1})
+        self.assertEqual(self.run_main([])[0], 0)
+        self.assertEqual(self.snapshot(), {"sentinel": 1})
+        self.assertEqual(self.run_main(["--checkpoint", "wdk-a", "wdk-docs"])[0], 0)
+        self.assertIn("packages", self.snapshot())
+
+    def test_checkpoint_org_repos_only_with_org(self) -> None:
+        org = {"wdk-x": {"pushed_at": "2026-10-20", "archived": False}}
+        self.bootstrap(["--org"], org=org)
+        self.assertEqual(self.snapshot()["org_repos"], org)
+        self.assertEqual(self.run_main(["--checkpoint"])[0], 0)
+        self.assertEqual(self.snapshot()["org_repos"], org)
+        code, err = self.run_main(["--org", "--checkpoint"], org=None)
+        self.assertEqual(code, 0)
+        self.assertEqual(self.snapshot()["org_repos"], org)
+        self.assertIn("org_repos", err)
+
+    def cambios(self) -> str:
+        return self.read("cambios.md")
+
+    def cambios_section(self, number: int) -> str:
+        return self.cambios().split(f"\n## {number}.", 1)[1].split("\n## ", 1)[0]
+
+    def commit_docs(self, docs: Path, files: dict[str, str], subject: str = "docs update") -> None:
+        commit_files(docs, files, subject)
+
+    def write_note(self, rel: str, source: str) -> None:
+        path = self.vault / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"---\ntype: concept\nstatus: shipped\nsource:\n  - {source}\n---\n# T\n\nUna afirmación.\n",
+                        encoding="utf-8")
+
+    def test_cambios_without_snapshot_exits_2(self) -> None:
+        make_repo(self.workspace, "wdk-a", ["init"])
+        self.make_docs()
+        code, err = self.run_main(["--cambios"])
+        self.assertEqual(code, 2)
+        self.assertIn("no hay foto indexada; correr primero --checkpoint", err)
+        self.assertFalse((self.vault / "_meta" / "cambios.md").exists())
+
+    def test_cambios_without_changes_says_sin_cambios_everywhere(self) -> None:
+        org = {"wdk-x": {"pushed_at": "2026-10-20", "archived": False}}
+        npm = {"@tetherto/wdk-wallet-evm": "1.0.0-beta.20"}
+        self.bootstrap(["--npm", "--org"], npm, org)
+        before = {name: self.read(name) for name in ("last-sync.md", "indexado.json")}
+        self.assertEqual(self.run_main(["--cambios", "--npm", "--org"], npm, org)[0], 0)
+        for number in range(7):
+            self.assertIn("sin cambios", self.cambios_section(number), number)
+        self.assertNotIn("[[", self.cambios())
+        self.assertEqual({name: self.read(name) for name in before}, before)
+
+    def test_cambios_reports_documented_version_change_with_changelog_range(self) -> None:
+        docs = self.bootstrap(["--npm"], {"@tetherto/wdk-wallet-evm": "1.0.0-beta.20"})
+        evm = "https://github.com/tetherto/wdk-wallet-evm/releases/tag/v"
+        self.commit_docs(docs, {
+            "content/docs/sdk/wallet-modules/wallet-evm/index.mdx":
+                "These pages reflect `@tetherto/wdk-wallet-evm@1.0.0-beta.22`.\n",
+            "content/docs/overview/changelog.mdx":
+                "### October 20, 2026\n"
+                f"- **wdk-wallet-evm** ([v1.0.0-beta.22]({evm}1.0.0-beta.22)): Add fee caps.\n"
+                f"- **wdk-wallet-evm** ([v1.0.0-beta.21]({evm}1.0.0-beta.21)): [Breaking] Rename sendTx.\n"
+                f"- **wdk-wallet-evm** ([v1.0.0-beta.20]({evm}1.0.0-beta.20)): Old entry.\n\n" + CHANGELOG,
+        })
+        self.assertEqual(self.run_main(["--cambios", "--npm"], {"@tetherto/wdk-wallet-evm": "1.0.0-beta.22"})[0], 0)
+        section = self.cambios_section(1)
+        row = [line for line in section.splitlines() if line.startswith("| @tetherto/wdk-wallet-evm |")][0]
+        self.assertIn("| 1.0.0-beta.20 | 1.0.0-beta.22 | 1.0.0-beta.20 → 1.0.0-beta.22 |", row)
+        self.assertIn("2, 1 breaking: 2026-10-20", row)
+        self.assertIn("- 2026-10-20 · 1.0.0-beta.21 [Breaking]: Rename sendTx.", section)
+        self.assertIn("- 2026-10-20 · 1.0.0-beta.22: Add fee caps.", section)
+        self.assertNotIn("Old entry", section)
+        self.assertNotIn("sin cambios", section)
+        self.assertNotIn("sin cambios", self.cambios_section(6))
+
+    def test_cambios_lists_changed_pages_and_the_notes_citing_them(self) -> None:
+        docs = self.bootstrap()
+        self.commit_docs(docs, {"content/docs/a.mdx": "alpha\n", "content/docs/old.mdx": "stable page body\n" * 5,
+                                "content/docs/lonely.mdx": "x\n"}, "pages")
+        self.assertEqual(self.run_main(["--checkpoint"])[0], 0)
+        self.write_note("concepts/Nota A.md", "wdk-docs/content/docs/a.mdx")
+        self.write_note("concepts/Nota Vieja.md", "wdk-docs/content/docs/old.mdx")
+        git(docs, "mv", "content/docs/old.mdx", "content/docs/new.mdx")
+        git(docs, "rm", "-q", "content/docs/lonely.mdx")
+        self.commit_docs(docs, {"content/docs/a.mdx": "beta\n", "content/docs/added.mdx": "new\n"})
+        self.assertEqual(self.run_main(["--cambios"])[0], 0)
+        cited, uncited = self.cambios_section(2).split("sin nota que las cite", 1)
+        line_a = [line for line in cited.splitlines() if "content/docs/a.mdx" in line][0]
+        self.assertIn("[[Nota A]]", line_a)
+        renamed = [line for line in cited.splitlines() if "content/docs/new.mdx" in line][0]
+        self.assertIn("content/docs/old.mdx", renamed)
+        self.assertIn("[[Nota Vieja]]", renamed)
+        self.assertIn("ruta vieja", renamed)
+        self.assertIn("content/docs/added.mdx", uncited)
+        self.assertIn("content/docs/lonely.mdx", uncited)
+        self.assertNotIn("[[", uncited)
+        for number in (0, 1, 3, 4, 5):
+            self.assertNotIn("[[", self.cambios_section(number))
+
+    def test_cambios_reports_new_and_missing_catalog_packages(self) -> None:
+        self.bootstrap()
+        snap = self.snapshot()
+        del snap["packages"]["@tetherto/wdk-wallet"]
+        snap["packages"]["@tetherto/wdk-gone"] = {"documented": "1.0.0", "source": "changelog:2026-01-01", "npm": ""}
+        (self.vault / "_meta" / "indexado.json").write_text(json.dumps(snap), encoding="utf-8")
+        self.assertEqual(self.run_main(["--cambios"])[0], 0)
+        new, gone = self.cambios_section(3).split("Desaparecidos", 1)
+        self.assertIn("@tetherto/wdk-wallet", new)
+        self.assertIn("@tetherto/wdk-gone", gone)
+        self.assertNotIn("@tetherto/wdk-wallet-evm", self.cambios_section(3))
+
+    def test_cambios_reports_npm_moving_while_docs_did_not(self) -> None:
+        self.bootstrap(["--npm"], {"@tetherto/wdk-wallet-evm": "1.0.0-beta.20", "@tetherto/wdk-wallet": "error"})
+        npm = {"@tetherto/wdk-wallet-evm": "1.0.0-beta.24", "@tetherto/wdk-wallet": "1.0.0-beta.30"}
+        self.assertEqual(self.run_main(["--cambios", "--npm"], npm)[0], 0)
+        section = self.cambios_section(4)
+        line = [line for line in section.splitlines() if "@tetherto/wdk-wallet-evm" in line][0]
+        self.assertIn("1.0.0-beta.20 → 1.0.0-beta.24", line)
+        self.assertNotIn("`@tetherto/wdk-wallet`", section)
+        self.assertIn("sin cambios", self.cambios_section(1))
+
+    def test_cambios_reports_org_repos(self) -> None:
+        org = {"wdk-a": {"pushed_at": "2026-10-01", "archived": False},
+               "wdk-b": {"pushed_at": "2026-10-01", "archived": False},
+               "wdk-gone": {"pushed_at": "2026-01-01", "archived": False}}
+        self.bootstrap(["--org"], org=org)
+        self.assertEqual(self.run_main(["--cambios"])[0], 0)
+        self.assertIn("no consultado (correr con --org)", self.cambios_section(5))
+        now = {"wdk-a": {"pushed_at": "2026-10-20", "archived": False},
+               "wdk-b": {"pushed_at": "2026-10-01", "archived": True},
+               "wdk-new": {"pushed_at": "2026-10-25", "archived": False}}
+        self.assertEqual(self.run_main(["--cambios", "--org"], org=now)[0], 0)
+        section = self.cambios_section(5)
+        parts = {title: section.split(title, 1)[1].split("\n\n", 1)[0]
+                 for title in ("Nuevos", "Con push más reciente", "Archivados", "Desaparecidos")}
+        self.assertIn("wdk-new", parts["Nuevos"])
+        self.assertIn("`wdk-a`: 2026-10-01 → 2026-10-20", parts["Con push más reciente"])
+        self.assertIn("wdk-b", parts["Archivados"])
+        self.assertIn("wdk-gone", parts["Desaparecidos"])
+        self.assertNotIn("wdk-b", parts["Con push más reciente"])
+
+    def test_cambios_with_checkpoint_reports_then_saves_snapshot(self) -> None:
+        docs = self.bootstrap()
+        old = self.snapshot()["wdk_docs"]["commit"]
+        self.commit_docs(docs, {"content/docs/b.mdx": "new page\n"})
+        self.assertEqual(self.run_main(["--cambios", "--checkpoint"])[0], 0)
+        self.assertIn("content/docs/b.mdx", self.cambios_section(2))
+        self.assertIn(old[:7], self.cambios_section(0))
+        self.assertEqual(self.snapshot()["wdk_docs"]["commit"], versions._git(docs, "rev-parse", "HEAD"))
 
     def test_checkpoint_unknown_repo_exits_2(self) -> None:
         make_repo(self.workspace, "wdk-a", ["init"])

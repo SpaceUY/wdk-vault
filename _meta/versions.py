@@ -1,13 +1,16 @@
-"""Genera _meta/versions.md, _meta/versions.json y (con --checkpoint) _meta/last-sync.md.
+"""Genera _meta/versions.md, _meta/versions.json y (con --checkpoint) _meta/last-sync.md y _meta/indexado.json.
+
+Con --cambios compara el estado actual contra la foto _meta/indexado.json y escribe _meta/cambios.md.
 
 Solo lectura sobre los repos del workspace: nunca hace fetch ni escribe en ellos. Analiza
 `origin/<rama>` (o la rama local si no hay origin) con `git show`/`git ls-tree`/`git archive`:
 nunca lee el arbol de trabajo. Los repos salen de `_meta/repos.txt`.
-Red solo detras de --npm (npm view) y --checkpoint (GET del changelog del sitio).
+Red solo detras de --npm (npm view), --org (API de GitHub) y --checkpoint (GET del changelog del sitio).
 """
 import argparse
 import http.client
 import io
+import itertools
 import json
 import re
 import subprocess
@@ -22,6 +25,14 @@ from pathlib import Path
 
 VAULT = Path(__file__).resolve().parent.parent
 SITE_CHANGELOG_URL = "https://docs.wdk.tether.io/overview/changelog.md"
+ORG_REPOS_URL = "https://api.github.com/orgs/tetherto/repos?per_page=100&page={page}"
+ORG_REPO_RE = re.compile(r"wdk|pear-wrk|tether-wrk", re.IGNORECASE)
+USER_AGENT = "wdk-vault-versions/1.0"
+SNAPSHOT = "indexado.json"
+SNAPSHOT_MISSING = "no hay foto indexada; correr primero --checkpoint"
+NO_CHANGES = "sin cambios"
+SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
+PAGE_STATUS = {"A": "agregada", "M": "modificada", "D": "borrada", "R": "renombrada", "T": "modificada"}
 CHANGELOG_REL = "content/docs/overview/changelog.mdx"
 RELEASE_RE = re.compile(r"^(?![Rr]evert\b)(?:[Rr]elease:\s+v?|.*?release/v)(\d+\.\d+\.\d+)")
 CALLOUT_RE = re.compile(r"These pages reflect `([^`]+)`")
@@ -727,6 +738,204 @@ def _sync_section(s: RepoState, docs_site: dict, sync: dict[str, str]) -> list[s
     return lines
 
 
+# ---------------------------------------------------------------- cambios
+
+PageChange = tuple[str, str, str | None]
+
+
+def _range_changes(entries: list[ChangelogEntry], package: str, source: str, low: str, high: str) -> list[ChangelogEntry]:
+    """Entradas `low < version <= high`, tambien bajo el id `github:` del que salio la version (`... via github:x/y`)."""
+    ids = [package] + ([source.rpartition(" via ")[2]] if " via " in source else [])
+    return [e for pid in ids for e in changes_between(entries, pid, low, high)]
+
+
+def _entry_line(e: ChangelogEntry) -> str:
+    breaking = " [Breaking]" if e.breaking else ""
+    return f"- {e.date} · {e.version}{breaking}: {e.summary.removeprefix('[Breaking]').strip()}"
+
+
+def _cambios_header(previous: dict, current: dict) -> list[str]:
+    before, now = previous.get("wdk_docs") or {}, current["wdk_docs"]
+    old = before.get("commit", "")
+    lines = [f"- Foto indexada: {previous.get('indexed_on', '—')}, wdk-docs `{old[:7]}` ({before.get('date', '—')})",
+             f"- Actual: wdk-docs {now['ref']} `{now['commit'][:7]}` ({now['date']})"]
+    same = old == now["commit"]
+    return lines + [f"- Commit de la doc: {NO_CHANGES}" if same else f"- La doc avanzó: `{old[:7]}..{now['commit'][:7]}`"]
+
+
+def _cambios_versions(previous: dict, current: dict, entries: list[ChangelogEntry]) -> list[str]:
+    before, now = previous.get("packages") or {}, current["packages"]
+    changed = [p for p in sorted(set(before) & set(now)) if before[p].get("documented", "") != now[p]["documented"]]
+    if not changed:
+        return []
+    lines = ["| paquete | indexada | actual | npm indexado → npm actual | cambios del changelog en el rango |",
+             "|---|---|---|---|---|"]
+    details: list[str] = []
+    for package in changed:
+        old, new = before[package].get("documented", ""), now[package]["documented"]
+        changes = _range_changes(entries, package, now[package]["source"], old, new)
+        npm = f"{before[package].get('npm') or '—'} → {now[package]['npm'] or '—'}"
+        lines.append(f"| {package} | {old or '—'} | {new or '—'} | {npm} | {_range_cell(changes)} |")
+        if changes:
+            details += ["", f"`{package}`:"] + [_entry_line(e) for e in changes]
+    return lines + details
+
+
+def _links(notes: list[str]) -> str:
+    return ", ".join(f"[[{n}]]" for n in notes)
+
+
+def _cambios_pages(pages: list[PageChange] | None, cited: dict[str, list[str]], docs_name: str,
+                   old: str, new: str) -> list[str]:
+    if pages is None:
+        return [f"no se pudo comparar: el commit indexado `{old[:7]}` no está en {docs_name} (¿falta un fetch?)"]
+    if not pages:
+        return []
+    reviewed: list[str] = []
+    uncited: list[str] = []
+    for status, path, new_path in pages:
+        word = PAGE_STATUS.get(status, status)
+        old_notes = cited.get(f"{docs_name}/{path}", [])
+        if new_path is None:
+            label, notes, stale = f"`{path}` ({word})", old_notes, []
+        else:
+            label, notes, stale = f"`{path}` → `{new_path}` ({word})", cited.get(f"{docs_name}/{new_path}", []), old_notes
+        parts = [_links(notes)] if notes else []
+        if stale:
+            parts.append(f"citan la ruta vieja, corregir su `source:`: {_links(stale)}")
+        if parts:
+            reviewed.append(f"- {label}: {'; '.join(parts)}")
+        else:
+            uncited.append(f"- {label}")
+    return [f"`git diff --name-status {old[:7]}..{new[:7]} -- content/docs`: {len(pages)} páginas.", "",
+            "Notas a revisar:", *(reviewed or ["- ninguna"]), "",
+            "Páginas sin nota que las cite:", *(uncited or ["- ninguna"])]
+
+
+def _cambios_catalog(previous: dict, current: dict) -> list[str]:
+    before, now = previous.get("packages") or {}, current["packages"]
+    new, gone = sorted(set(now) - set(before)), sorted(set(before) - set(now))
+    if not new and not gone:
+        return []
+    added = [f"- `{p}`: {now[p]['documented'] or '—'} ({now[p]['source']})" for p in new]
+    removed = [f"- `{p}`: {before[p].get('documented') or '—'} ({before[p].get('source', '—')})" for p in gone]
+    return ["Nuevos:", *(added or ["- ninguno"]), "", "Desaparecidos:", *(removed or ["- ninguno"])]
+
+
+def _cambios_npm(previous: dict, current: dict) -> list[str]:
+    before, now = previous.get("packages") or {}, current["packages"]
+    lines = []
+    for package in sorted(set(before) & set(now)):
+        old, new = before[package].get("npm", ""), now[package]["npm"]
+        known = old and new and NPM_ERROR not in (old, new)
+        if known and old != new and before[package].get("documented", "") == now[package]["documented"]:
+            lines.append(f"- `{package}`: npm {old} → {new}; documentada sigue en {now[package]['documented'] or '—'}")
+    return ["npm cambió y la versión documentada no: la doc va atrás de npm.", "", *lines] if lines else []
+
+
+def _cambios_org(before: dict, now: dict) -> list[str]:
+    if not before:
+        return ["la foto no tiene repos de tetherto: correr `--checkpoint` con `--org` para guardarlos"] if now else []
+    both = sorted(set(now) & set(before))
+    groups = {
+        "Nuevos": [f"- `{r}`" for r in sorted(set(now) - set(before))],
+        "Con push más reciente": [f"- `{r}`: {before[r].get('pushed_at', '')} → {now[r]['pushed_at']}"
+                                  for r in both if now[r]["pushed_at"] > before[r].get("pushed_at", "")],
+        "Archivados": [f"- `{r}`" for r in both if now[r]["archived"] and not before[r].get("archived")],
+        "Desaparecidos": [f"- `{r}`" for r in sorted(set(before) - set(now))],
+    }
+    if not any(groups.values()):
+        return []
+    lines: list[str] = []
+    for title, items in groups.items():
+        lines += [f"{title}:", *(items or ["- ninguno"]), ""]
+    return lines[:-1]
+
+
+CHECKLIST = [
+    "1. Revisar las notas de la sección 2 contra las páginas que cambiaron.",
+    "2. Actualizar `package:` o las notas que tocan las secciones 1, 3 y 5.",
+    "3. Correr `python3 _meta/versions.py --npm --org --checkpoint <repos sincronizados>`; con `wdk-docs` "
+    "entre ellos se guarda la foto nueva.",
+    "4. Correr `python3 _meta/check.py`, que tiene que terminar limpio.",
+]
+
+
+def render_cambios(previous: dict, current: dict, entries: list[ChangelogEntry], pages: list[PageChange] | None,
+                   cited: dict[str, list[str]], docs_name: str = "wdk-docs",
+                   org_missing: str = "no consultado (correr con --org)") -> str:
+    """Informe de lo que cambio desde la foto `previous`. `current["org_repos"]` None: la org no se consulto."""
+    old, new = (previous.get("wdk_docs") or {}).get("commit", ""), current["wdk_docs"]["commit"]
+    bodies = {
+        "1. Paquetes con versión documentada distinta": _cambios_versions(previous, current, entries),
+        "2. Páginas de la doc que cambiaron": _cambios_pages(pages, cited, docs_name, old, new),
+        "3. Paquetes nuevos / desaparecidos del catálogo": _cambios_catalog(previous, current),
+        "4. npm": _cambios_npm(previous, current),
+    }
+    org = current["org_repos"]
+    bodies["5. Repos de tetherto"] = _cambios_org(previous.get("org_repos") or {}, org) if org is not None else []
+    changed = old != new or any(bodies.values())
+    lines = [
+        "# Cambios desde la última foto indexada",
+        "",
+        "Archivo generado por `_meta/versions.py --cambios`; no se edita a mano. Compara el estado actual",
+        "contra la foto `_meta/indexado.json`, que guarda `--checkpoint` cuando incluye `wdk-docs`.",
+        "",
+        "## 0. Encabezado",
+        "",
+        *_cambios_header(previous, current),
+    ]
+    for title, body in bodies.items():
+        if title.startswith("5.") and org is None:
+            body = [org_missing]
+        lines += ["", f"## {title}", "", *(body or [NO_CHANGES])]
+    lines += ["", "## 6. Qué hacer", "", *(CHECKLIST if changed else [NO_CHANGES])]
+    return "\n".join(lines) + "\n"
+
+
+def docs_page_changes(repo: Path, old: str, new: str) -> list[PageChange] | None:
+    """(estado, ruta, ruta nueva si es un renombre) de `content/docs` entre dos commits; None si git no puede comparar."""
+    if not SHA_RE.match(old):
+        return None
+    try:
+        raw = subprocess.run(["git", "diff", "--name-status", "-z", "-M", f"{old}..{new}", "--", "content/docs"],
+                             cwd=repo, capture_output=True, text=True, check=True).stdout
+    except subprocess.CalledProcessError:
+        return None
+    fields = iter(raw.split("\0"))
+    changes: list[PageChange] = []
+    for code in fields:
+        if not code:
+            break
+        path = next(fields)
+        changes.append((code[0], path, next(fields) if code[0] in "RC" else None))
+    return changes
+
+
+def _frontmatter_sources(text: str) -> list[str]:
+    end = text.find("\n---", 4) if text.startswith("---\n") else -1
+    sources: list[str] = []
+    inside = False
+    for line in text[4:end].splitlines() if end != -1 else []:
+        if line.startswith("  - ") and inside:
+            sources.append(line[4:].strip().strip("'\""))
+        elif line.strip():
+            inside = line.startswith("source:")
+    return sources
+
+
+def note_sources(vault: Path) -> dict[str, list[str]]:
+    """Ruta de `source:` -> notas que la citan (fuera de `_meta` y de las carpetas ocultas)."""
+    cited: dict[str, list[str]] = {}
+    for path in sorted(vault.rglob("*.md")):
+        parts = path.relative_to(vault).parts
+        if "_meta" in parts or any(part.startswith(".") for part in parts):
+            continue
+        for source in _frontmatter_sources(path.read_text(encoding="utf-8", errors="replace")):
+            cited.setdefault(source, []).append(path.stem)
+    return cited
+
+
 # --------------------------------------------------------------------- IO
 
 def _repo_list(vault: Path) -> list[tuple[str, set[str]]] | None:
@@ -803,11 +1012,33 @@ def _fetch_npm_latest(packages: list[str]) -> dict[str, str]:
 
 def _site_changelog_top() -> str:
     try:
-        request = urllib.request.Request(SITE_CHANGELOG_URL, headers={"User-Agent": "wdk-vault-versions/1.0"})
+        request = urllib.request.Request(SITE_CHANGELOG_URL, headers={"User-Agent": USER_AGENT})
         with urllib.request.urlopen(request, timeout=20) as response:
             return changelog_top_date(response.read().decode("utf-8", errors="replace")) or UNKNOWN
     except (OSError, ValueError, http.client.HTTPException):
         return UNKNOWN
+
+
+def _fetch_org_repos() -> dict[str, dict] | None:
+    """Repos publicos de tetherto cuyo nombre es del WDK: nombre -> pushed_at y archived. None ante un error de red."""
+    found: dict[str, dict] = {}
+    try:
+        for page in itertools.count(1):
+            request = urllib.request.Request(ORG_REPOS_URL.format(page=page), headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(request, timeout=20) as response:
+                items = json.loads(response.read().decode("utf-8"))
+            if not isinstance(items, list):
+                raise ValueError("la respuesta no es una lista")
+            if not items:
+                break
+            for item in items:
+                name = item.get("name") if isinstance(item, dict) else None
+                if isinstance(name, str) and ORG_REPO_RE.search(name):
+                    found[name] = {"pushed_at": (item.get("pushed_at") or "")[:10], "archived": bool(item.get("archived"))}
+    except (OSError, ValueError, http.client.HTTPException) as error:
+        print(f"warning: no se pudo consultar la org tetherto en GitHub: {error}", file=sys.stderr)
+        return None
+    return dict(sorted(found.items()))
 
 
 def _docs_site(repo_top: str) -> dict:
@@ -853,12 +1084,43 @@ def _write_checkpoint(meta: Path, states: list[RepoState], failed: dict[str, str
     path.write_text(text, encoding="utf-8")
 
 
+def snapshot_payload(today: str, docs_state: RepoState, catalog: dict[str, DocVersion], npm_latest: dict[str, str],
+                     org_repos: dict) -> dict:
+    """Foto de lo indexado: commit de la doc, cada fila del catalogo con su npm, y los repos de tetherto."""
+    return {
+        "indexed_on": today,
+        "wdk_docs": {"ref": docs_state.analyzed_ref, "commit": docs_state.head, "date": docs_state.head_date},
+        "packages": {p: {"documented": d.version, "source": d.source, "npm": npm_latest.get(p, "")}
+                     for p, d in catalog.items()},
+        "org_repos": org_repos,
+    }
+
+
+def _load_snapshot(meta: Path) -> dict | None:
+    try:
+        data = json.loads((meta / SNAPSHOT).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _write_json(path: Path, payload: dict) -> None:
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def main(argv: list[str], vault: Path = VAULT) -> int:
     parser = argparse.ArgumentParser(description="Genera _meta/versions.md y versions.json")
     parser.add_argument("--npm", action="store_true", help="consulta dist-tags.latest en npm")
     parser.add_argument("--checkpoint", nargs="*", metavar="REPO",
-                        help="escribe _meta/last-sync.md; sin nombres avanza todos los repos, con nombres solo esos")
+                        help="escribe _meta/last-sync.md; sin nombres avanza todos los repos, con nombres solo esos; "
+                             "si incluye wdk-docs, guarda la foto _meta/indexado.json")
+    parser.add_argument("--org", action="store_true", help="consulta los repos de la org tetherto en GitHub")
+    parser.add_argument("--cambios", action="store_true",
+                        help="compara contra _meta/indexado.json y escribe _meta/cambios.md")
     args = parser.parse_args(argv)
+    if args.cambios and _load_snapshot(vault / "_meta") is None:
+        print(f"error: {SNAPSHOT_MISSING}", file=sys.stderr)
+        return 2
 
     workspace = vault.parent
     docs = workspace / "wdk-docs"
@@ -876,16 +1138,17 @@ def main(argv: list[str], vault: Path = VAULT) -> int:
         print(f"warning: {name}: no analizable: {reason}", file=sys.stderr)
     docs_state = next((s for s in states if s.name == docs.name), None)
     try:
-        docs_ref = docs_state.head if docs_state else repo_state(docs, _analysis_branch(docs)).head
+        docs_state = docs_state or repo_state(docs, _analysis_branch(docs))
     except subprocess.CalledProcessError:
         print(f"error: {docs} no es analizable con git", file=sys.stderr)
         return 2
     with tempfile.TemporaryDirectory() as tmp:
-        return _generate(args, vault, _export_docs(docs, docs_ref, Path(tmp)), states, failed, docs_only)
+        return _generate(args, vault, _export_docs(docs, docs_state.head, Path(tmp)), states, failed, docs_only,
+                         docs_state)
 
 
 def _generate(args: argparse.Namespace, vault: Path, docs: Path, states: list[RepoState],
-              failed: dict[str, str], docs_only: set[str]) -> int:
+              failed: dict[str, str], docs_only: set[str], docs_state: RepoState) -> int:
     workspace = vault.parent
     scans = {s.name: scan_lockfiles(workspace / s.name, s.head) for s in states if s.name not in docs_only}
     locked_by_repo = {name: scan[0] for name, scan in scans.items()}
@@ -920,9 +1183,25 @@ def _generate(args: argparse.Namespace, vault: Path, docs: Path, states: list[Re
                   for s in states},
         "packages": sorted(packages),
     }
-    (meta / "versions.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    _write_json(meta / "versions.json", payload)
+    saves_snapshot = args.checkpoint is not None and (not args.checkpoint or docs_state.name in args.checkpoint)
+    org = _fetch_org_repos() if args.org and (args.cambios or saves_snapshot) else None
+    previous = _load_snapshot(meta) or {}
+    snapshot = snapshot_payload(today, docs_state, catalog, npm["latest"],
+                                previous.get("org_repos", {}) if org is None else org)
+    if args.cambios:
+        old = (previous.get("wdk_docs") or {}).get("commit", "")
+        pages = docs_page_changes(workspace / docs_state.name, old, docs_state.head)
+        missing = "no se pudo consultar (error de red; ver stderr)" if args.org else "no consultado (correr con --org)"
+        report = render_cambios(previous, {**snapshot, "org_repos": org}, entries, pages, note_sources(vault),
+                                docs_state.name, missing)
+        (meta / "cambios.md").write_text(report, encoding="utf-8")
     if args.checkpoint is not None:
         _write_checkpoint(meta, states, failed, changelog, args.checkpoint, today)
+    if saves_snapshot:
+        if org is None and args.org:
+            print("warning: org_repos: se conservan los de la foto anterior", file=sys.stderr)
+        _write_json(meta / SNAPSHOT, snapshot)
     return 0
 
 
