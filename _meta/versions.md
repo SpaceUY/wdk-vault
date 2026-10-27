@@ -158,7 +158,7 @@ no se puede ver una release posterior a la integrada en `origin/main` de cada re
 |---|---|---|---|---|---|
 | @tetherto/pear-wrk-wdk | 1.0.0-beta.8 | 1.0.0-beta.16 (callout:content/docs/tools/pear-wrk-wdk/index.mdx) | 1.0.0-beta.17 | atrás | 8, 3 breaking: 2026-09-14, 2026-09-11, 2026-09-02 |
 | @tetherto/wdk | 1.0.0-beta.12 | 1.0.0-beta.18 (callout:content/docs/sdk/core-module/index.mdx) | 1.0.0-beta.22 | atrás | 6, 2 breaking: 2026-09-08, 2026-08-12 |
-| @tetherto/wdk-backup-cloud-react-native | 1.0.0-beta.2 | — | — | sin documentar | — |
+| @tetherto/wdk-backup-cloud-react-native | 1.0.0-beta.2 | — (install:content/docs/tools/backup-cloud/guides/migrate-from-react-native.mdx) | 1.0.0-beta.2 | sin versión documentada | — |
 | @tetherto/wdk-failover-provider | 1.0.0-beta.2 | 1.0.0-beta.3 (changelog:2026-07-22) | 1.0.0-beta.4 | atrás | 1 |
 | @tetherto/wdk-react-native-core | git:temp-rw-patch | 1.0.0-beta.21 (callout:content/docs/tools/react-native-core/index.mdx) | 1.0.0-beta.22 | git | — |
 | @tetherto/wdk-safe-protocol-kit | 6.1.3 | — | — | sin documentar | — |
@@ -215,6 +215,8 @@ no se puede ver una release posterior a la integrada en `origin/main` de cada re
 | paquete | documentada (fuente) | npm latest | lo uso en |
 |---|---|---|---|
 | @0x/wdk-protocol-swidge-0x | 0.1.0 (changelog:2026-08-12) | 0.1.0 | no instalado |
+| @base58-io/wdk-wallet-cosmos | — (install:content/docs/sdk/community-modules/wdk-wallet-cosmos/guides/check-balances.mdx) | 1.0.0-beta.6 | no instalado |
+| @bermuda/wdk-wallet-evm-bermuda | — (install:content/docs/sdk/wallet-modules/wallet-evm-bermuda/api-reference.mdx) | — | no instalado |
 | @butternetwork/wdk-protocol-swidge-butter | 0.2.0 (changelog:2026-09-17) | 0.2.0 | no instalado |
 | @candidelabs/wdk-protocol-sda-candide | 1.0.0-beta.1 (changelog:2026-10-05) | 1.0.0-beta.1 | no instalado |
 | @hinkal/wdk-wallet-evm-hinkal | 0.0.7 (changelog:2026-09-10) | 0.0.7 | no instalado |
@@ -223,16 +225,19 @@ no se puede ver una release posterior a la integrada en `origin/main` de cada re
 | @morpho-org/wdk-protocol-lending-morpho-evm | 1.0.5 (changelog:2026-07-23) | 3.0.0 | no instalado |
 | @rhino.fi/wdk-protocol-sda-rhinofi | 1.2.0 (changelog:2026-10-14) | 1.2.0 | no instalado |
 | @rhino.fi/wdk-protocol-swidge-rhinofi | 1.0.0-beta.2 (changelog:2026-07-07) | 1.4.0 | no instalado |
+| @symbiosis-finance/wdk-protocol-swidge-symbiosis | 1.3.0 (changelog:2026-08-01 via github:symbiosis-finance/wdk-protocol-swidge-symbiosis) | 1.3.0 | no instalado |
 | @tetherto/create-wdk-module | 1.0.0-beta.3 (changelog:2026-07-30) | 1.0.0-beta.4 | no instalado |
 | @tetherto/pear-wrk-wdk | 1.0.0-beta.16 (callout:content/docs/tools/pear-wrk-wdk/index.mdx) | 1.0.0-beta.17 | wdk-qualification-exercise 1.0.0-beta.8 |
 | @tetherto/wdk | 1.0.0-beta.18 (callout:content/docs/sdk/core-module/index.mdx) | 1.0.0-beta.22 | wdk-qualification-exercise 1.0.0-beta.12 |
 | @tetherto/wdk-asset-registry | 1.0.0-beta.4 (callout:content/docs/tools/asset-registry/index.mdx) | 1.0.0-beta.5 | no instalado |
 | @tetherto/wdk-backup-cloud | 1.0.0-beta.1 (changelog:2026-08-18) | 1.0.0-beta.2 | no instalado |
+| @tetherto/wdk-backup-cloud-react-native | — (install:content/docs/tools/backup-cloud/guides/migrate-from-react-native.mdx) | 1.0.0-beta.2 | wdk-qualification-exercise 1.0.0-beta.2 |
 | @tetherto/wdk-cli | 1.0.0-beta.6 (callout:content/docs/cli/index.mdx) | 1.0.0-beta.8 | no instalado |
 | @tetherto/wdk-core | 1.0.0-beta.5 (changelog:2025-12-17) | — | no instalado |
 | @tetherto/wdk-core-react-native | 1.0.0-beta.6 (changelog:2026-03-24) | — | no instalado |
 | @tetherto/wdk-failover-provider | 1.0.0-beta.3 (changelog:2026-07-22) | 1.0.0-beta.4 | wdk-indexer-wrk-solana 1.0.0-beta.2; wdk-qualification-exercise 1.0.0-beta.2 |
 | @tetherto/wdk-indexer-http | 1.0.1 (changelog:2026-10-07) | 1.0.3 | no instalado |
+| @tetherto/wdk-mcp-toolkit | — (install:content/docs/ai/mcp-toolkit/api-reference.mdx) | 0.0.0 | no instalado |
 | @tetherto/wdk-p2p-address-book | 1.0.0-beta.3 (changelog:2026-08-10) | 1.0.0-beta.3 | no instalado |
 | @tetherto/wdk-pricing-bitfinex-http | 1.0.0-beta.6 (changelog:2026-10-05) | 1.0.0-beta.7 | no instalado |
 | @tetherto/wdk-pricing-coingecko-http | 1.0.0-beta.2 (changelog:2026-08-12) | 1.0.0-beta.3 | no instalado |
@@ -243,6 +248,8 @@ no se puede ver una release posterior a la integrada en `origin/main` de cada re
 | @tetherto/wdk-protocol-swap-velora-evm | 1.0.0-beta.9 (changelog:2026-09-24) | 1.0.0-beta.11 | no instalado |
 | @tetherto/wdk-react-native-core | 1.0.0-beta.21 (callout:content/docs/tools/react-native-core/index.mdx) | 1.0.0-beta.22 | wdk-qualification-exercise git:temp-rw-patch |
 | @tetherto/wdk-react-native-secure-storage | 1.0.0-beta.5 (changelog:2026-07-22) | 1.0.0-beta.5 | no instalado |
+| @tetherto/wdk-secret-manager | — (install:content/docs/tools/secret-manager/api-reference.mdx) | 1.0.0-beta.3 | no instalado |
+| @tetherto/wdk-uikit-react-native | — (install:content/docs/ui-kits/react-native-ui-kit/api-reference.mdx) | 1.0.0-beta.2 | no instalado |
 | @tetherto/wdk-utils | 1.0.0-beta.13 (callout:content/docs/tools/wdk-utils/index.mdx) | 1.0.0-beta.15 | no instalado |
 | @tetherto/wdk-wallet | 1.0.0-beta.22 (changelog:2026-10-05) | 1.0.0-beta.25 | wdk-indexer-wrk-evm 1.0.0-beta.7; wdk-indexer-wrk-solana 1.0.0-beta.7; wdk-indexer-wrk-spark 1.0.0-beta.7; wdk-indexer-wrk-ton 1.0.0-beta.7; wdk-indexer-wrk-tron 1.0.0-beta.8; wdk-qualification-exercise 1.0.0-beta.17 |
 | @tetherto/wdk-wallet-aptos | 1.0.0-beta.3 (changelog:2026-09-30) | 1.0.0-beta.5 | no instalado |
@@ -260,8 +267,10 @@ no se puede ver una release posterior a la integrada en `origin/main` de cada re
 | @tetherto/wdk-wallet-tron | 1.0.0-beta.15 (callout:content/docs/sdk/wallet-modules/wallet-tron/index.mdx) | 1.0.0-beta.16 | wdk-indexer-wrk-tron 1.0.0-beta.5; wdk-qualification-exercise 1.0.0-beta.7 |
 | @tetherto/wdk-wallet-tron-gasfree | 1.0.0-beta.10 (callout:content/docs/sdk/wallet-modules/wallet-tron-gasfree/index.mdx) | 1.0.0-beta.12 | wdk-indexer-wrk-tron 1.0.0-beta.5 |
 | @tetherto/wdk-worklet-bundler | 1.0.0-beta.14 (callout:content/docs/tools/worklet-bundler/index.mdx) | 1.0.0-beta.16 | wdk-qualification-exercise 1.0.0-beta.3 |
-| github:UTEXO-Protocol/wdk-rgb-lightning | 0.1.0-beta.15 (changelog:2026-07-29) | — | no instalado |
-| github:symbiosis-finance/wdk-protocol-swidge-symbiosis | 1.3.0 (changelog:2026-08-01) | — | no instalado |
+| @transak/wdk-protocol-fiat-transak | — (install:content/docs/sdk/fiat-modules/fiat-transak/api-reference.mdx) | 1.0.2 | no instalado |
+| @utexo/wdk-rgb-lightning | 0.1.0-beta.15 (changelog:2026-07-29 via github:UTEXO-Protocol/wdk-rgb-lightning) | 0.2.0-beta.5 | no instalado |
+| @utexo/wdk-wallet-rgb | — (install:content/docs/sdk/community-modules/wdk-wallet-rgb/configuration.mdx) | 2.0.3 | no instalado |
+| @your-org/wdk-module-preferences | — (install:content/docs/tools/pear-wrk-wdk/configuration.mdx) | — | no instalado |
 
 ## Entradas del changelog sin paquete reconocido
 

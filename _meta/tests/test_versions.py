@@ -215,6 +215,16 @@ class DocsTest(unittest.TestCase):
         self.assertEqual(found["@rhino.fi/wdk-protocol-sda-rhinofi"].version, "1.1.0")
         self.assertEqual(found["@rhino.fi/wdk-protocol-sda-rhinofi"].source, "changelog:2026-10-06")
 
+    def test_install_packages_filters_to_wdk(self) -> None:
+        self.write("content/docs/tools/mcp.mdx",
+                   "```bash\nnpm install @tetherto/wdk-mcp-toolkit @modelcontextprotocol/sdk @x402/fetch\n```\n"
+                   "```js\nimport { X } from '@tetherto/wdk-wallet/protocols'\n```\n")
+        self.write("content/docs/other.md", "pnpm add @tetherto/wdk-wallet@1.0.0 @langchain/core\n")
+        found = versions.docs_install_packages(self.docs)
+        self.assertEqual(set(found), {"@tetherto/wdk-mcp-toolkit", "@tetherto/wdk-wallet"})
+        self.assertEqual(found["@tetherto/wdk-mcp-toolkit"], "content/docs/tools/mcp.mdx")
+        self.assertEqual(found["@tetherto/wdk-wallet"], "content/docs/other.md")
+
 
 class LockedPackagesTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -321,6 +331,38 @@ class RenderTest(unittest.TestCase):
         evm = [line for line in catalog.splitlines() if "@tetherto/wdk-wallet-evm" in line]
         self.assertIn("repo-a", evm[0])
         self.assertNotIn("[[", text)
+
+    def test_install_only_package_in_catalog(self) -> None:
+        pkg = "@tetherto/wdk-mcp-toolkit"
+        documented = {**self.documented(), pkg: versions.DocVersion(pkg, "", "install:content/docs/tools/mcp.mdx")}
+        text = versions.render_versions_md([state()], {"repo-a": {}}, documented, self.entries(), {pkg: "1.2.3"})
+        catalog = text.split("Catálogo: todos los paquetes documentados", 1)[1]
+        rows = [line for line in catalog.splitlines() if pkg in line]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("— (install:content/docs/tools/mcp.mdx)", rows[0])
+        self.assertIn("1.2.3", rows[0])
+        self.assertIn("no instalado", rows[0])
+
+    def test_github_id_merged_with_npm_name(self) -> None:
+        gh, npm = "github:symbiosis-finance/wdk-protocol-swidge-symbiosis", "@symbiosis-finance/wdk-protocol-swidge-symbiosis"
+        entries = [versions.ChangelogEntry("2026-09-20", gh, "1.0.0-beta.2", False, "x")]
+        documented = {npm: versions.DocVersion(npm, "", "install:content/docs/a.mdx"),
+                      gh: versions.DocVersion(gh, "1.0.0-beta.2", "changelog:2026-09-20")}
+        text = versions.render_versions_md([state()], {}, documented, entries, {})
+        catalog = text.split("Catálogo: todos los paquetes documentados", 1)[1]
+        rows = [line for line in catalog.splitlines() if "wdk-protocol-swidge-symbiosis" in line]
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0].startswith(f"| {npm} |"))
+        self.assertIn(f"1.0.0-beta.2 (changelog:2026-09-20 via {gh})", rows[0])
+
+    def test_empty_documented_version_not_compared(self) -> None:
+        pkg = "@tetherto/wdk-mcp-toolkit"
+        documented = {pkg: versions.DocVersion(pkg, "", "install:content/docs/a.mdx")}
+        text = versions.render_versions_md([state()], {"repo-a": {pkg: ["0.1.0"]}}, documented, [], {})
+        row = [line for line in text.splitlines() if line.startswith(f"| {pkg} | 0.1.0")][0]
+        self.assertIn("| sin versión documentada |", row)
+        catalog = text.split("Catálogo: todos los paquetes documentados", 1)[1]
+        self.assertIn("repo-a 0.1.0", [line for line in catalog.splitlines() if pkg in line][0])
 
     def test_repo_section_shows_range_and_breaking(self) -> None:
         text = versions.render_versions_md(
@@ -434,7 +476,8 @@ class MainTest(unittest.TestCase):
         docs = make_repo(self.workspace, "wdk-docs", ["init"])
         page = docs / "content" / "docs" / "sdk" / "wallet-modules" / "wallet-evm" / "index.mdx"
         page.parent.mkdir(parents=True)
-        page.write_text("These pages reflect `@tetherto/wdk-wallet-evm@1.0.0-beta.20`.\n", encoding="utf-8")
+        page.write_text("These pages reflect `@tetherto/wdk-wallet-evm@1.0.0-beta.20`.\n"
+                        "npm install @tetherto/wdk-mcp-toolkit @langchain/core\n", encoding="utf-8")
         (docs / "content" / "docs" / "overview").mkdir()
         (docs / "content" / "docs" / "overview" / "changelog.mdx").write_text(CHANGELOG, encoding="utf-8")
         code, _ = self.run_main([])
@@ -444,8 +487,10 @@ class MainTest(unittest.TestCase):
         self.assertEqual(sorted(data["repos"]), ["wdk-a", "wdk-docs"])
         self.assertEqual(data["repos"]["wdk-a"]["release"], "v0.3.1")
         self.assertEqual(data["packages"], sorted(set(data["packages"])))
-        for expected in ("@tetherto/wdk-wallet-evm", "@tetherto/wdk-wallet", "@rhino.fi/wdk-protocol-sda-rhinofi"):
+        for expected in ("@tetherto/wdk-wallet-evm", "@tetherto/wdk-wallet", "@rhino.fi/wdk-protocol-sda-rhinofi",
+                         "@tetherto/wdk-mcp-toolkit"):
             self.assertIn(expected, data["packages"])
+        self.assertNotIn("@langchain/core", data["packages"])
         self.assertTrue((self.vault / "_meta" / "versions.md").exists())
         self.assertFalse((self.vault / "_meta" / "last-sync.md").exists())
 
