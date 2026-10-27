@@ -7,7 +7,7 @@ Also regenerates _meta/edges.md, the inbound-edge index for readers without
 a backlinks pane (i.e. Claude reading the vault as plain files).
 
 Beyond the base checks it verifies that every `source:` points at a real path in the
-workspace (or is an https:// URL), that `package:` in systems/ notes exists in
+workspace (working tree or the repo's origin/main) or is an https:// URL, that `package:` in systems/ notes exists in
 _meta/versions.json, and that services/ notes carry a non-empty `detect:` list.
 Any path with a component starting with "." (.git, .obsidian, .superpowers) is not
 part of the vault and is ignored.
@@ -17,8 +17,8 @@ Exit 0 = clean, 1 = at least one failure. Sinks are reported, never failed on.
 """
 
 import json
-
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -100,9 +100,21 @@ def check_source(entry: str, workspace: Path) -> str | None:
     first = entry.split("/", 1)[0]
     if not (workspace / first).is_dir():
         return f"source {entry!r} does not start with a workspace directory or https://"
-    if not (workspace / entry).exists():
+    if not (workspace / entry).exists() and not exists_on_origin(workspace / first, entry.partition("/")[2]):
         return f"source {entry!r} does not exist"
     return None
+
+
+def exists_on_origin(repo: Path, rest: str) -> bool:
+    """True when `rest` (file or directory) exists at `origin/main` of a git repo of the workspace.
+
+    Maintenance only fetches, so a path can exist upstream before the working tree has it.
+    """
+    if not rest or not (repo / ".git").exists():
+        return False
+    result = subprocess.run(["git", "cat-file", "-e", f"origin/main:{rest.rstrip('/')}"],
+                            cwd=repo, capture_output=True)
+    return result.returncode == 0
 
 
 def main(vault: Path, workspace: Path) -> int:

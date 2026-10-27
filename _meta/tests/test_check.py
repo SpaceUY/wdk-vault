@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +12,13 @@ META = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location("check", META / "check.py")
 check = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(check)
+
+
+GIT_ID = ["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false"]
+
+
+def git(cwd: Path, *args: str) -> None:
+    subprocess.run(["git", *GIT_ID, *args], cwd=cwd, capture_output=True, text=True, check=True)
 
 
 def note(type_: str, source: str = "repo-a/file.md", extra: str = "", body: str = "Una afirmacion.\n") -> str:
@@ -96,6 +104,32 @@ class CheckTest(unittest.TestCase):
     def test_structural_cycle_fails(self) -> None:
         self.write("concepts/A.md", note("concept", body="## Structural\n- requires → [[B]]\n"))
         self.write("concepts/B.md", note("concept", body="## Structural\n- requires → [[A]]\n"))
+        self.assertEqual(self.run_check(), 1)
+
+    def fetched_only_repo(self) -> None:
+        """repo-b cuyo origin/main tiene `new.md` y `dir/x.md`, que el arbol de trabajo no tiene."""
+        src = self.workspace.parent / "src"
+        src.mkdir()
+        git(src, "init", "-q", "-b", "main")
+        git(src, "commit", "-q", "--allow-empty", "-m", "init")
+        git(self.workspace, "clone", "-q", str(src), "repo-b")
+        (src / "dir").mkdir()
+        (src / "new.md").write_text("x", encoding="utf-8")
+        (src / "dir" / "x.md").write_text("x", encoding="utf-8")
+        git(src, "add", "-A")
+        git(src, "commit", "-q", "-m", "add")
+        git(self.workspace / "repo-b", "fetch", "-q", "origin")
+        self.assertFalse((self.workspace / "repo-b" / "new.md").exists())
+
+    def test_source_exists_only_on_origin_passes(self) -> None:
+        self.fetched_only_repo()
+        self.write("concepts/A.md", note("concept", "repo-b/new.md"))
+        self.write("concepts/B.md", note("concept", "repo-b/dir"))
+        self.assertEqual(self.run_check(), 0)
+
+    def test_source_missing_everywhere_fails(self) -> None:
+        self.fetched_only_repo()
+        self.write("concepts/A.md", note("concept", "repo-b/nope.md"))
         self.assertEqual(self.run_check(), 1)
 
     def test_dot_directories_are_ignored(self) -> None:
