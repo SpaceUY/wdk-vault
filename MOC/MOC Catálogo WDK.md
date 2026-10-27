@@ -46,7 +46,7 @@ Catálogo de todo módulo del WDK que la documentación describe, agrupado por �
 ## Protocolos de swap y bridge
 - [[swap-velora-evm]]: swaps EVM por Velora
 - [[bridge-usdt0-evm]]: bridge de USD₮0 y XAU₮0 por LayerZero
-- [[wdk-protocol-bridge-usdt0-solana]]: bridge de USD₮0 desde Solana, anunciado: solo existe el repo con un README, sin módulo publicado
+- [[wdk-protocol-bridge-usdt0-solana]]: bridge de USD₮0 desde Solana; repo reservado, solo con un README, sin módulo publicado
 - [[swidge-0x]]: swaps en una cadena por 0x
 - [[swidge-butter]]: rutas por Butter Network
 - [[swidge-lifi]]: swap, bridge y rutas combinadas por LI.FI
@@ -135,4 +135,4 @@ Estos repos de la organización `tetherto` no figuran en `wdk-docs` y no tienen 
 - `tether-wrk-ork-base`: base de workers publicada en npm (1.0.1 al 2026-10-27; `_meta/versions.md` no la sigue); ninguno de los repos SpaceUY la usa como dependencia
 
 ## No modelado
-De los 158 repos públicos de la organización `tetherto`, 70 se relacionan con el WDK; los otros 88 (miningos, pearpass, qvac y similares) no se modelaron deliberadamente. Los paquetes `@tetherto/wdk-core` y `@tetherto/wdk-core-react-native` solo aparecen en entradas históricas del changelog y no tienen nota. Tampoco los kits `@tetherto/wdk-safe-protocol-kit` y `@tetherto/wdk-safe-relay-kit`, los paquetes `@tetherto/docs-seo-*` ni las dependencias internas del backend (`hp-svc-facs-*`, `svc-facs-*`, `tether-wrk-base`), que figuran en `_meta/versions.md` pero no son módulos documentados del SDK. La página de OpenClaw se cubre dentro de [[Agent Skills WDK]]. No se modelan las guías por módulo ni la referencia de API, y el contenido del CLI más allá de su página de entrada (comandos, seguridad y formato de almacenamiento) queda sin detalle.
+De los 158 repos públicos de la organización `tetherto`, 70 se relacionan con el WDK, y de esos 70 solo se modelaron los que este MOC enlaza más arriba; el resto no tiene nota (los de la sección anterior figuran solo como referencia). Los otros 88 (miningos, pearpass, qvac y similares) no se modelaron deliberadamente. Los paquetes `@tetherto/wdk-core` y `@tetherto/wdk-core-react-native` solo aparecen en entradas históricas del changelog y no tienen nota. Tampoco los kits `@tetherto/wdk-safe-protocol-kit` y `@tetherto/wdk-safe-relay-kit`, los paquetes `@tetherto/docs-seo-*` ni las dependencias internas del backend (`hp-svc-facs-*`, `svc-facs-*`, `tether-wrk-base`), que figuran en `_meta/versions.md` pero no son módulos documentados del SDK. La página de OpenClaw se cubre dentro de [[Agent Skills WDK]]. No se modelan las guías por módulo ni la referencia de API, y el contenido del CLI más allá de su página de entrada (comandos, seguridad y formato de almacenamiento) queda sin detalle.

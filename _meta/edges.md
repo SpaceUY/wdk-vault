@@ -153,7 +153,7 @@ copy lives in the origin note, this is only the reverse lookup.
 - wdk-backup-cloud — requires → backup-cloud no cifra, la app cifra antes because sube el string tal cual, sin cifrar ni validar nada
 
 ## bridge-usdt0-evm
-- wdk-protocol-bridge-usdt0-solana — contrasts with → bridge-usdt0-evm because cubriría el sentido inverso, con origen en cuentas Solana, mientras el módulo EVM parte de cuentas EVM
+- wdk-protocol-bridge-usdt0-solana — contrasts with → bridge-usdt0-evm because partiría de cuentas Solana, mientras el módulo EVM parte de cuentas EVM
 
 ## pear-wrk-wdk
 - wdk-core-kotlin — depends on → pear-wrk-wdk because esa capa es el runtime del worklet y atiende los mensajes JSON-RPC de `WdkCore`
@@ -172,7 +172,7 @@ copy lives in the origin note, this is only the reverse lookup.
 ## wdk
 - pear-wrk-wdk — depends on → wdk because inicializa el WDK dentro del worklet con la seed cifrada que recibe
 - wdk-core-kotlin — depends on → wdk because el `package.json` de su carpeta `js/` declara `@tetherto/wdk` como dependencia del worklet
-- wdk-core-swift — depends on → wdk because su API (`initializeWDK`, `callMethod`) opera sobre el WDK de JavaScript que corre dentro del worklet
+- wdk-core-swift — depends on → wdk because su README la presenta como paquete Swift del WDK y su API ejecuta cualquier método del WDK (`callMethod`)
 
 ## wdk-app-node
 - Afinidad usuario-ork por CRC32 — is part of → wdk-app-node because el cálculo vive en `resolveOrkRpcKey` de su servicio `ork.js`
