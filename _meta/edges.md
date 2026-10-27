@@ -26,6 +26,9 @@ copy lives in the origin note, this is only the reverse lookup.
 - wdk-wallet-evm-7702-gasless — requires → Bundler ERC-4337 because necesita la URL de un bundler ERC-4337
 - wdk-wallet-evm-erc-4337 — requires → Bundler ERC-4337 because `bundlerUrl` es un parámetro obligatorio para procesar transacciones
 
+## Cargo de activación de la cuenta GasFree
+- wdk-wallet-tron-gasfree — causes → Cargo de activación de la cuenta GasFree because cuando la cuenta GasFree está inactiva, la cotización y la transferencia suman el cargo de activación, que se cobra en el token
+
 ## Cuenta sin saldo del token para repagar al paymaster
 - Modos de pago de gas en ERC-4337 — causes → Cuenta sin saldo del token para repagar al paymaster because en modo Paymaster Token el fee se descuenta del saldo de la Safe, y si ese saldo no alcanza el envío falla con un error de saldo insuficiente
 

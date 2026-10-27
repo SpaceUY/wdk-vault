@@ -22,6 +22,7 @@ Mapa de las transacciones sin token nativo con el WDK. Parte de la falla [[Usuar
 - [[Bundler ERC-4337]]
 - [[Modos de pago de gas en ERC-4337]]
 - [[Delegación EIP-7702]]
+- [[Cargo de activación de la cuenta GasFree]]
 
 ## Restricción y fallas
 - [[Gasless requiere paymaster configurado]]
