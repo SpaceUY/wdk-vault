@@ -284,10 +284,10 @@ def _git_pins(repo: Path, ref: str, files: set[str]) -> dict[str, list[str]]:
                 if not (name.startswith("@tetherto/") and isinstance(spec, str)):
                     continue
                 if spec.startswith(("github:", "git+")):
-                    ref = spec.partition("#")[2] or "HEAD"
+                    pin = spec.partition("#")[2] or "HEAD"
                     pins.setdefault(name, [])
-                    if f"git:{ref}" not in pins[name]:
-                        pins[name].append(f"git:{ref}")
+                    if f"git:{pin}" not in pins[name]:
+                        pins[name].append(f"git:{pin}")
     return pins
 
 

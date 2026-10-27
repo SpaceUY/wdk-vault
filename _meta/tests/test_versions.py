@@ -394,6 +394,21 @@ class LockedPackagesTest(unittest.TestCase):
         self.assertNotIn("@tetherto/ignored", found)
         self.assertEqual(versions.compare("git:temp-rw-patch", "1.0.0-beta.21"), "git")
 
+    def test_git_pins_multiple_files_keep_analysed_ref(self) -> None:
+        for folder, tag in (("a", "v1.2.3"), ("b", "v9.9.9")):
+            path = self.repo / folder / "package.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({"dependencies": {
+                f"@tetherto/wdk-{folder}": f"github:tetherto/wdk-{folder}#{tag}"}}), encoding="utf-8")
+        self.commit()
+        analysed = versions._git(self.repo, "rev-parse", "HEAD")
+        with mock.patch.object(versions, "_show", wraps=versions._show) as show:
+            found = versions.locked_packages(self.repo, analysed)
+        self.assertEqual(found["@tetherto/wdk-a"], ["git:v1.2.3"])
+        self.assertEqual(found["@tetherto/wdk-b"], ["git:v9.9.9"])
+        pin_reads = [c.args[1] for c in show.call_args_list if c.args[2].endswith("package.json")]
+        self.assertEqual(pin_reads, [analysed, analysed])
+
     def test_locked_packages_pnpm(self) -> None:
         text = (
             "lockfileVersion: '9.0'\n\n"
