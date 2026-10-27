@@ -5,6 +5,46 @@ copy lives in the origin note, this is only the reverse lookup.
 
 ## Breaking change entre betas
 - Verificar la versión antes de afirmar una capacidad — mitigates → Breaking change entre betas
+- pear-wrk-wdk — causes → Breaking change entre betas because el changelog marca como `[Breaking]` el paso de los campos secretos de base64 a `Buffer`
+- wdk — causes → Breaking change entre betas because el changelog marca como `[Breaking]` cambios de contrato de las políticas entre betas
+- wdk-asset-registry — causes → Breaking change entre betas because el changelog marca como `[Breaking]` que `getTokenByAddress()` pase a distinguir mayúsculas
+- wdk-react-native-core — causes → Breaking change entre betas because el changelog marca como `[Breaking]` el paso a identidad de wallet a cargo de la app
+- wdk-utils — causes → Breaking change entre betas because el changelog marca como `[Breaking]` cambios en los resultados de validación de direcciones
+- wdk-wallet — causes → Breaking change entre betas because el changelog marca varios cambios `[Breaking]` de contratos base entre betas consecutivas
+- wdk-wallet-btc — causes → Breaking change entre betas because el cambio del path de derivación por defecto alteró las direcciones de una misma seed
+- wdk-wallet-evm — causes → Breaking change entre betas because el changelog marca como `[Breaking]` el cambio de overrides de gas en transferencias ERC-20
+- wdk-wallet-multisig-squads — causes → Breaking change entre betas because el changelog marca como `[Breaking]` el resultado de aprobaciones off-chain
+- wdk-wallet-solana — causes → Breaking change entre betas because el cambio del path por defecto produjo direcciones distintas para una misma seed
+- wdk-wallet-ton — causes → Breaking change entre betas because el changelog marca como `[Breaking]` el nuevo esquema de firma de mensajes
+- wdk-worklet-bundler — causes → Breaking change entre betas because el changelog marca como `[Breaking]` volver opcional la conversión ESM a CJS
+
+## Custodia tercerizada (MPC)
+- wdk — can replace → Custodia tercerizada (MPC) because las claves quedan en el entorno de la app y no hay custodio externo
+
+## Fuga de seed por almacenamiento inseguro
+- La seed nunca sale del dispositivo — forbids → Fuga de seed por almacenamiento inseguro because guardar la seed en claro en un lugar que no controla el dispositivo rompe la garantía
+- backup-cloud no cifra: la app cifra antes — prevents → Fuga de seed por almacenamiento inseguro because al exigir texto cifrado de origen, el proveedor de nube nunca recibe la seed en claro
+- wdk-react-native-core — mitigates → Fuga de seed por almacenamiento inseguro because guarda las credenciales cifradas en el keychain del dispositivo
+- wdk-react-native-secure-storage — mitigates → Fuga de seed por almacenamiento inseguro because mantiene el material de la wallet cifrado en el keychain del dispositivo
+- wdk-secret-manager — mitigates → Fuga de seed por almacenamiento inseguro because cifra la seed con una passkey y la limpia de memoria
+- wdk-utils — mitigates → Fuga de seed por almacenamiento inseguro because cifra la seed con una passphrase antes de persistirla
+
+## La seed nunca sale del dispositivo
+- Diseñar el WDK como autocustodial sin custodio intermediario — establishes → La seed nunca sale del dispositivo because la visión de control total del usuario sobre sus activos exige que el SDK no retenga la seed
+- Seed derivada en el dispositivo — requires → La seed nunca sale del dispositivo because la derivación solo es autocustodial si la seed no sale del entorno de la app
+
+## Pérdida de fondos por seed sin backup
+- La seed nunca sale del dispositivo — causes → Pérdida de fondos por seed sin backup because al no existir otra copia, perder el dispositivo sin respaldo propio pierde el acceso
+- wdk-backup-cloud — mitigates → Pérdida de fondos por seed sin backup because permite recuperar la wallet entre dispositivos a partir de un respaldo cifrado
+- wdk-utils — mitigates → Pérdida de fondos por seed sin backup because permite repartir el mnemónico en partes y recuperarlo con un umbral
+- wdk-wallet-rgb — opens a question about → Pérdida de fondos por seed sin backup because la doc aclara que la seed no reemplaza el respaldo del estado RGB local, algo que este modelo de pérdida no cubre
+
+## Seed derivada en el dispositivo
+- Custodia tercerizada (MPC) — contrasts with → Seed derivada en el dispositivo because la custodia tercerizada delega las claves, la seed derivada las deja en el dispositivo
+- Wallets embebidas WaaS — contrasts with → Seed derivada en el dispositivo because el proveedor hospedado gestiona las claves, mientras la seed derivada las mantiene en el dispositivo
+- wdk — requires → Seed derivada en el dispositivo because el constructor recibe la seed que la app genera o descifra
+- wdk-wallet-cosmos — requires → Seed derivada en el dispositivo because el manager no admite signers nombrados ni externos
+- wdk-wallet-evm-hinkal — requires → Seed derivada en el dispositivo because la creación de cuentas solo acepta seed y no signers externos
 
 ## Usar una API documentada que mi versión no tiene
 - Verificar la versión antes de afirmar una capacidad — prevents → Usar una API documentada que mi versión no tiene
@@ -12,3 +52,61 @@ copy lives in the origin note, this is only the reverse lookup.
 
 ## Verificar la versión antes de afirmar una capacidad
 - Usar la release integrada en SpaceUY como versión desplegada — establishes → Verificar la versión antes de afirmar una capacidad
+
+## Wallets embebidas WaaS
+- wdk — can replace → Wallets embebidas WaaS because ofrece cuentas por cadena sin un proveedor de wallets hospedadas
+- wdk-react-native-core — can replace → Wallets embebidas WaaS because ofrece creación, bloqueo y desbloqueo de wallets dentro de la app sin proveedor hospedado
+
+## backup-cloud no cifra: la app cifra antes
+- Seed derivada en el dispositivo — requires → backup-cloud no cifra: la app cifra antes because la única recuperación posible pasa por un respaldo que la propia app cifró
+- wdk-backup-cloud — requires → backup-cloud no cifra: la app cifra antes because sube el string tal cual, sin cifrar ni validar nada
+
+## pear-wrk-wdk
+- wdk-react-native-core — depends on → pear-wrk-wdk because el worklet Bare que aloja al WDK usa esa capa de transporte
+- wdk-worklet-bundler — depends on → pear-wrk-wdk because los puntos de entrada que genera importan esa capa
+
+## wdk
+- pear-wrk-wdk — depends on → wdk because inicializa el WDK dentro del worklet con la seed cifrada que recibe
+
+## wdk-failover-provider
+- wdk-wallet-evm — opens a question about → wdk-failover-provider because acepta una lista ordenada de providers como failover, pero la doc no dice si lo implementa con ese paquete
+
+## wdk-react-native-core
+- wdk-uikit-react-native — contrasts with → wdk-react-native-core because el kit es presentación sin lógica y la librería core es estado y operaciones de wallet
+
+## wdk-react-native-secure-storage
+- wdk-react-native-core — contrasts with → wdk-react-native-secure-storage because incluye su propio storage con identificadores explícitos y autenticación a cargo de la app, a diferencia del paquete standalone
+
+## wdk-secret-manager
+- wdk-utils — contrasts with → wdk-secret-manager because ambos cifran seeds con una passphrase, con esquemas distintos (AES-GCM con scrypt frente a secretbox con PBKDF2)
+
+## wdk-wallet
+- wdk — depends on → wdk-wallet because los managers que registra extienden `WalletManager` del paquete base
+- wdk-rgb-lightning — depends on → wdk-wallet because se expone mediante la interfaz de manager y cuenta de WDK
+- wdk-wallet-aptos — depends on → wdk-wallet because se integra mediante las interfaces de wallet compartidas
+- wdk-wallet-btc — depends on → wdk-wallet because su manager extiende `WalletManager` del paquete base
+- wdk-wallet-cosmos — depends on → wdk-wallet because se expone mediante las interfaces de wallet de WDK
+- wdk-wallet-evm — depends on → wdk-wallet because su manager extiende `WalletManager` del paquete base
+- wdk-wallet-multisig-safe — depends on → wdk-wallet because implementa los contratos multisig que exporta el paquete base
+- wdk-wallet-multisig-squads — depends on → wdk-wallet because implementa los contratos multisig que exporta el paquete base
+- wdk-wallet-rgb — depends on → wdk-wallet because envuelve el SDK de RGB detrás de las clases de manager y cuenta de WDK
+- wdk-wallet-solana — depends on → wdk-wallet because su manager extiende `WalletManager` del paquete base
+- wdk-wallet-spark — depends on → wdk-wallet because su manager extiende `WalletManager` del paquete base
+- wdk-wallet-ton — depends on → wdk-wallet because su manager extiende `WalletManager` del paquete base
+- wdk-wallet-tron — depends on → wdk-wallet because su manager extiende `WalletManager` del paquete base
+
+## wdk-wallet-btc
+- wdk-wallet-spark — contrasts with → wdk-wallet-btc because el selector de módulos los separa: Lightning sobre Spark frente a Bitcoin en capa base
+
+## wdk-wallet-evm
+- wdk-wallet-evm-bermuda — depends on → wdk-wallet-evm because su manager extiende el manager EVM y suma `getBermudaAccount()`
+- wdk-wallet-evm-hinkal — depends on → wdk-wallet-evm because su manager extiende `WalletManagerEvm`
+
+## wdk-wallet-evm-hinkal
+- wdk-wallet-evm-bermuda — contrasts with → wdk-wallet-evm-hinkal because ambos dan privacidad en EVM: cuentas blindadas con pool propio frente a envíos privados con retiro programado
+
+## wdk-wallet-rgb
+- wdk-rgb-lightning — contrasts with → wdk-wallet-rgb because ambos manejan RGB pero son wallets separadas, con identidades y bases de datos distintas
+
+## wdk-worklet-bundler
+- wdk-react-native-core — requires → wdk-worklet-bundler because necesita el bundle del worklet que genera el bundler
